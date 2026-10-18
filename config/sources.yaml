@@ -1,0 +1,47 @@
+# Ingestion sources. RSS feeds verified 2026-10-18 (see ADR-005).
+http:
+  user_agent: "research-scout/0.1 (+https://github.com/Vanshh29/research-scout)"
+  timeout_s: 30
+  max_retries: 4
+
+arxiv:
+  categories: [cs.AI, cs.CL, cs.LG, cs.IR, cs.MA]
+  max_results: 200
+  # An item is kept if its title or abstract contains any keyword (case-insensitive).
+  keywords:
+    - agent
+    - agentic
+    - tool use
+    - function calling
+    - retrieval-augmented
+    - retrieval augmented
+    - RAG
+    - LLM-as-a-judge
+    - LLM judge
+    - benchmark
+    - evaluation
+    - prompt injection
+    - jailbreak
+    - long-context
+    - long context
+    - multi-agent
+    - structured output
+    - inference cost
+    - latency
+    - speculative decoding
+
+github:
+  topics: [llm-agents, rag, llm-evaluation, ai-agents, agentic-workflows]
+  min_stars: 20
+  created_within_days: 30
+
+rss:
+  feeds:
+    - name: lilian-weng
+      url: https://lilianweng.github.io/index.xml
+    - name: simon-willison
+      url: https://simonwillison.net/atom/everything/
+    - name: huggingface
+      url: https://huggingface.co/blog/feed.xml
+    - name: latent-space
+      url: https://www.latent.space/feed
