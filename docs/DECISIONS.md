@@ -75,3 +75,21 @@ Simon Willison (`/atom/everything/`), Hugging Face (`/blog/feed.xml`), Latent Sp
 
 **Consequences.** Four blog sources. Adding an HTML scraper for feedless blogs is possible later but
 is out of scope for the week (scrapers are brittle and need their own tests).
+
+---
+
+## ADR-006: sqlite-vec for vectors (spike result)
+
+**Context.** sqlite-vec is a loadable SQLite extension; some Python builds disable extension
+loading, which would break vector search on the host or in CI.
+
+**Spike (2026-10-18).** On macOS (Python 3.12.8, SQLite 3.45.3) `sqlite_vec.load()` works and a
+`vec0` KNN query returns correct neighbours. Linux/Docker was **not** verified yet (Docker daemon
+was not running).
+
+**Decision.** Keep sqlite-vec. When it's added on Day 4, a CI test loads it on `ubuntu-latest`,
+which is the same environment as the daily cron.
+
+**Consequences.** Fallback if loading fails anywhere: brute-force cosine in numpy over stored
+embeddings — at <50k items × 384 dims that is ~20 MB and a few ms per query, so the fallback is
+acceptable, just less elegant.
