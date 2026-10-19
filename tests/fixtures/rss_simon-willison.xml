@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xml:lang="en-us" xmlns="http://www.w3.org/2005/Atom"><title>Simon Willison's Weblog</title><link href="http://simonwillison.net/" rel="alternate"/><link href="http://simonwillison.net/atom/everything/" rel="self"/><id>http://simonwillison.net/</id><updated>2026-10-18T23:43:09+00:00</updated><author><name>Simon Willison</name></author><entry><title>llm-tools-datasette 0.1.1</title><link href="https://simonwillison.net/2026/Oct/18/llm-tools-datasette/" rel="alternate"/><published>2026-10-18T23:43:09+00:00</published><updated>2026-10-18T23:43:09+00:00</updated><id>https://simonwillison.net/2026/Oct/18/llm-tools-datasette/</id><summary type="html">
+
+        &lt;p&gt;&lt;strong&gt;Release:&lt;/strong&gt; &lt;a href="https://github.com/simonw/llm-tools-datasette/releases/tag/0.1.1"&gt;llm-tools-datasette 0.1.1&lt;/a&gt;&lt;/p&gt;
+        &lt;p&gt;When I switched LLM over to &lt;a href="https://github.com/pydantic/httpx2"&gt;httpx2&lt;/a&gt; in &lt;a href="https://llm.datasette.io/en/stable/changelog.html#v0-33"&gt;LLM 0.33&lt;/a&gt; I forget that this would break any plugins which used &lt;code&gt;httpx&lt;/code&gt; without directly depending on it. &lt;code&gt;llm-tools-datasette&lt;/code&gt; was one of those plugins, now fixed.&lt;/p&gt;
+
+
+        &lt;p&gt;Tags: &lt;a href="https://simonwillison.net/tags/datasette"&gt;datasette&lt;/a&gt;, &lt;a href="https://simonwillison.net/tags/llm"&gt;llm&lt;/a&gt;&lt;/p&gt;
+
+
+</summary><category term="datasette"/><category term="llm"/></entry><entry><title>llm-echo 0.5</title><link href="https://simonwillison.net/2026/Oct/18/llm-echo/" rel="alternate"/><published>2026-10-18T23:16:16+00:00</published><updated>2026-10-18T23:16:16+00:00</updated><id>https://simonwillison.net/2026/Oct/18/llm-echo/</id><summary type="html">
+
+        &lt;p&gt;&lt;strong&gt;Release:&lt;/strong&gt; &lt;a href="https://github.com/simonw/llm-echo/releases/tag/0.5"&gt;llm-echo 0.5&lt;/a&gt;&lt;/p&gt;
+        &lt;p&gt;I'm working towards a new &lt;a href="https://llm.datasette.io/"&gt;LLM&lt;/a&gt; release, and testing PRs caused me to revisit the &lt;code&gt;llm-echo&lt;/code&gt; debug plugin. This plugin provides a "model" which doesn't involve an LLM at all - it just repeats back the prompts that have been fed to it. The new release now updates the simulated token usage counts to take tool calls, system prompts, and reasoning tokens into account.&lt;/p&gt;
+&lt;p&gt;Example usage:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;uvx --with llm-echo llm -m echo 'hi there' -o thinking 1 --usage
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Outputs:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;First I consider the prompt, then I decide what to say.
+{
+  "prompt": "hi there",
+  "system": "",
+  "attachments": [],
+  "stream": true,
+  "previous": []
+}
+Token usage: 2 input, 24 output
+&lt;/code&gt;&lt;/pre&gt;
+
+
+        &lt;p&gt;Tags: &lt;a href="https://simonwillison.net/tags/llm"&gt;llm&lt;/a&gt;&lt;/p&gt;
+
+
+</summary><category term="llm"/></entry><entry><title>Inline rendering with document​.currentScript</title><link href="https://simonwillison.net/2026/Oct/17/document-currentscript/" rel="alternate"/><published>2026-10-17T21:11:12+00:00</published><updated>2026-10-17T21:11:12+00:00</updated><id>https://simonwillison.net/2026/Oct/17/document-currentscript/</id><summary type="html">
+
+&lt;p&gt;&lt;strong&gt;&lt;a href="https://leanrada.com/notes/inline-rendering-currentscript/"&gt;Inline rendering with document​.currentScript&lt;/a&gt;&lt;/strong&gt;&lt;/p&gt;
+Lean Rada describes a neat trick that takes advantage of the &lt;a href="https://developer.mozilla.org/en-US/docs/Web/API/Document/currentScript"&gt;document.currentScript&lt;/a&gt; property. You can use that to drop in a tiny inline &lt;code&gt;&amp;lt;script&amp;gt;&lt;/code&gt; element that replaces itself when the page loads:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;The year is &amp;lt;script&amp;gt;
+document.currentScript.replaceWith(
+  new Date().getFullYear())&amp;lt;/script&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;If you define a shortcut function like this:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;$=(...n)=&amp;gt;document.currentScript.replaceWith(...n)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;You get a tiny template language:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;The year is &amp;lt;script&amp;gt;$(new Date().getFullYear())&amp;lt;/script&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+
+    &lt;p&gt;Tags: &lt;a href="https://simonwillison.net/tags/javascript"&gt;javascript&lt;/a&gt;&lt;/p&gt;
+
+
+
+</summary><category term="javascript"/></entry></feed>

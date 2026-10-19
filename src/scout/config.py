@@ -51,6 +51,8 @@ class RssFeed(BaseModel):
 
 class RssConfig(BaseModel):
     feeds: list[RssFeed] = []
+    max_age_days: int = Field(default=30, ge=1)
+    max_items_per_feed: int = Field(default=50, ge=1)
 
 
 class SourcesConfig(BaseModel):

@@ -10,6 +10,8 @@ import httpx
 
 from scout.ingest.base import Source
 from scout.log import get_logger
+from scout.models import Item
+from scout.process.sanitize import injection_signals, sanitize_item
 from scout.store.db import upsert_item
 
 log = get_logger("ingest")
@@ -40,10 +42,21 @@ def ingest_sources(
             log.exception("source failed", extra={"source": source.name})
         else:
             report = SourceReport(source=source.name, status="ok", fetched=len(items))
-            for item in items:
+            for raw in items:
+                item = _screen(raw)
                 result = upsert_item(conn, item)
                 setattr(report, result, getattr(report, result) + 1)
         report.latency_ms = int((time.monotonic() - started) * 1000)
         log.info("source done", extra=vars(report))
         reports.append(report)
     return reports
+
+
+def _screen(item: Item) -> Item:
+    """Sanitize an item and record instruction-like patterns found in its text."""
+    item = sanitize_item(item)
+    signals = injection_signals(f"{item.title}\n{item.body}")
+    if signals:
+        log.warning("injection signals", extra={"item_id": item.id, "signals": signals})
+        item.raw_metadata["injection_signals"] = signals
+    return item

@@ -93,3 +93,47 @@ which is the same environment as the daily cron.
 **Consequences.** Fallback if loading fails anywhere: brute-force cosine in numpy over stored
 embeddings — at <50k items × 384 dims that is ~20 MB and a few ms per query, so the fallback is
 acceptable, just less elegant.
+
+---
+
+## ADR-007: GitHub source — search by topic, rank by star velocity
+
+**Context.** "Interesting new repos" is not the same as "most-starred repos". All-time star
+counts favour old projects; the goal is what's *taking off now*.
+
+**Options.** (a) Trending page scraping — no API, brittle. (b) Search API with a creation-date
+window per topic. (c) GraphQL star history per repo — accurate, but one call per repo.
+
+**Decision.** (b): one search per topic (`topic:X stars:>=20 created:>=<30 days ago`), deduped
+across topics. Velocity = stars ÷ age in days (age floored at 1 day), stored in `raw_metadata`.
+Identity is the numeric repo id (`github:<id>`), so renames and transfers don't create duplicates.
+Forks and archived repos are skipped. The body is description + topics; READMEs are not fetched
+(one extra call per repo, and descriptions are enough for first-pass filtering).
+
+**Consequences.** Velocity is a snapshot, not a time series: a 3-day-old repo with 300 stars and
+a 29-day-old one with 300 stars rank very differently, which is the intent. Search allows 10
+requests/min unauthenticated (30 with a token), so topics are spaced by a short sleep. Star
+counts change daily but are deliberately not part of the content hash, so they don't trigger
+"updated" every run. A later improvement is to fetch READMEs for the top-K only.
+
+---
+
+## ADR-008: Treat every fetched string as untrusted
+
+**Context.** Papers, READMEs and blog posts reach LLM prompts and the dashboard. Any of them can
+contain hidden instructions, markup, or characters that break prompt delimiters.
+
+**Decision.** One gate, `process/sanitize.py`, applied in `ingest_sources` before anything is
+stored: parsers convert markup to plain text; `sanitize_item` strips control, zero-width and
+bidi-override characters, collapses title whitespace, and truncates the body to 8000 characters
+at a word boundary (deterministic, marked with `…`). Non-http(s) links are dropped at parse time.
+For prompts, `wrap_document` puts the text in `<document id=… source=…>` and escapes any literal
+`<document` / `</document` inside it so content cannot close the block early.
+`injection_signals` flags instruction-like phrases ("ignore previous instructions", fake
+`SYSTEM:` lines, …) and stores them in `raw_metadata`.
+
+**Consequences.** The signal list is a heuristic for visibility, never a filter: attackers can
+rephrase, so the actual defense is delimiting plus a system prompt that says document text is
+data (added with the LLM layer on Day 3, with a canary test against the Fake provider). Storing
+truncated bodies means a long post is summarized from its first 8000 characters; acceptable for
+triage, noted as a limitation.
