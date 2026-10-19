@@ -7,6 +7,7 @@ from scout.models import Item
 from scout.process.sanitize import (
     html_to_text,
     injection_signals,
+    is_http_url,
     sanitize_item,
     sanitize_text,
     truncate,
@@ -82,11 +83,26 @@ def test_sanitize_item_cleans_truncates_and_rehashes() -> None:
         authors=[],
         published_at=None,
         fetched_at=datetime(2026, 10, 19, tzinfo=UTC),
-        body="<p>" + "word " * 5000 + "</p>",
+        body="word \x07" * 5000,
     )
     clean = sanitize_item(item, max_body_chars=100)
     assert clean.title == "Title"
     assert len(clean.body) <= 100
-    assert "<p>" not in clean.body
+    assert "\x07" not in clean.body
     assert clean.content_hash != item.content_hash
     assert sanitize_item(clean, max_body_chars=100) == clean  # idempotent
+
+
+@pytest.mark.parametrize(
+    ("url", "ok"),
+    [
+        ("https://example.com/a", True),
+        ("http://example.com", True),
+        ("javascript:alert(1)", False),
+        ("data:text/html;base64,AAAA", False),
+        ("file:///etc/passwd", False),
+        ("", False),
+    ],
+)
+def test_is_http_url(url: str, ok: bool) -> None:
+    assert is_http_url(url) is ok

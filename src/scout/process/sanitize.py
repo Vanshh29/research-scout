@@ -99,10 +99,15 @@ def injection_signals(text: str) -> list[str]:
 
 
 def sanitize_item(item: Item, *, max_body_chars: int = DEFAULT_MAX_BODY_CHARS) -> Item:
-    """Return a cleaned copy of an item with its content hash recomputed."""
-    body = html_to_text(item.body) if item.source == "rss" else item.body
+    """Return a cleaned copy of an item with its content hash recomputed. Parsers are
+    responsible for turning markup into text (see `html_to_text`)."""
     title = " ".join(sanitize_text(item.title).split())
-    body = truncate(sanitize_text(body), max_body_chars)
+    body = truncate(sanitize_text(item.body), max_body_chars)
     return item.model_copy(
         update={"title": title, "body": body, "content_hash": content_hash(title, body)}
     )
+
+
+def is_http_url(url: str) -> bool:
+    """Only http(s) links are ever stored or rendered (blocks javascript:, data:, file:)."""
+    return re.match(r"https?://[^\s/]+", url, re.IGNORECASE) is not None
