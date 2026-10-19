@@ -35,6 +35,13 @@ triggers Render's deploy hook; the app downloads the snapshot on boot.
 token-gated endpoint in a small append-only store and merged in the next run (designed on Day 5).
 Upgrade path: paid instance with a disk, or a hosted DB.
 
+**Amendment (2026-10-19).** The snapshot is published as a **GitHub Release asset** (tag `data`,
+file `scout.db`, replaced with `--clobber`) instead of a `data` branch. A binary committed daily
+bloats git history, and avoiding history rewrites on that branch means no force pushes at all. The
+workflow downloads the previous asset before each run so the database accumulates, and `scout
+snapshot` (`VACUUM INTO`) produces a compact standalone copy to upload. The public URL is
+`https://github.com/Vanshh29/research-scout/releases/download/data/scout.db`.
+
 ---
 
 ## ADR-003: Item identity and dedupe

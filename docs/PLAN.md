@@ -37,7 +37,7 @@ flowchart LR
     DB[(SQLite<br/>+ sqlite-vec)]
     I & E & L & H & K <--> DB
     B --> T[Telegram]
-    DB -- "scout.db published to data branch" --> W[Dashboard<br/>FastAPI + HTMX on Render]
+    DB -- "scout.db published as a release asset" --> W[Dashboard<br/>FastAPI + HTMX on Render]
     DB --> EV[Eval harness<br/>labels → metrics → eval/results]
 ```
 
@@ -57,7 +57,7 @@ flowchart LR
 
 Render's free web service sleeps after ~15 min idle and has no persistent disk we can rely on.
 So the dashboard is **read-only over a snapshot**: the daily Action runs the pipeline, publishes
-`scout.db` to a `data` branch, and hits Render's deploy hook; the app downloads the latest
+`scout.db` as a release asset (tag `data`), and hits Render's deploy hook; the app downloads the latest
 snapshot on boot. Write actions (feedback) are token-gated and queued for the next run.
 See ADR-002.
 
@@ -99,7 +99,7 @@ Goal: three sources flowing daily, injection defenses tested.
 - GitHub source (topic search + star velocity) · RSS source (4 verified feeds)
 - Sanitizer + prompt-injection fixtures (incl. a canary test)
 - `runs` / `source_status` tables, `scout run-daily` skeleton
-- **Daily cron Action** (ingest only) → real data starts accumulating; DB published to `data` branch
+- **Daily cron Action** (ingest only) → real data starts accumulating; DB published as a release asset
 
 ### Day 3 — Tue 20 Oct · LLM, ranking, delivery
 Goal: a real ranked brief arrives on Telegram.
