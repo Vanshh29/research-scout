@@ -1,0 +1,183 @@
+{
+  "total_count": 27,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 1411033473,
+      "full_name": "Gen-Verse/RSI-Anything",
+      "html_url": "https://github.com/Gen-Verse/RSI-Anything",
+      "description": "RSI-Anything: Unlocking Recursive Self-Improvement with World Models",
+      "stargazers_count": 796,
+      "forks_count": 63,
+      "created_at": "2026-10-08T22:52:16Z",
+      "pushed_at": "2026-10-13T10:00:45Z",
+      "topics": [
+        "jepa",
+        "llm-agents",
+        "recursive-self-improvement",
+        "world-models"
+      ],
+      "language": "HTML",
+      "fork": false,
+      "archived": false,
+      "owner": {
+        "login": "Gen-Verse"
+      },
+      "license": {
+        "spdx_id": "Apache-2.0"
+      }
+    },
+    {
+      "id": 1400250107,
+      "full_name": "BootLoops-ai/bootloops",
+      "html_url": "https://github.com/BootLoops-ai/bootloops",
+      "description": "BootLoops 1.0: certified computational tools and house engines for exact and high-precision physics and quantitative science, built to be driven by LLM agents. MIT; docs CC BY 4.0.",
+      "stargazers_count": 396,
+      "forks_count": 64,
+      "created_at": "2026-10-01T15:29:28Z",
+      "pushed_at": "2026-10-09T00:33:28Z",
+      "topics": [
+        "bootloops",
+        "feynman-integrals",
+        "llm-agents",
+        "physics",
+        "scientific-computing"
+      ],
+      "language": "Python",
+      "fork": false,
+      "archived": false,
+      "owner": {
+        "login": "BootLoops-ai"
+      },
+      "license": {
+        "spdx_id": "MIT"
+      }
+    },
+    {
+      "id": 1386191888,
+      "full_name": "scaleapi/agentenv-framework",
+      "html_url": "https://github.com/scaleapi/agentenv-framework",
+      "description": "Creating realistic RL environments requires collaboration between researchers, engineers, and domain experts across many dimensions: artifacts, environments tools, dynamism of the environment, reproducibility, and more. There is no open source framework for building these environments effectively. Until now.",
+      "stargazers_count": 327,
+      "forks_count": 29,
+      "created_at": "2026-09-24T18:52:20Z",
+      "pushed_at": "2026-10-19T07:06:57Z",
+      "topics": [
+        "a2a",
+        "agent-evaluation",
+        "agentic-ai",
+        "ai-agents",
+        "llm-agents",
+        "llm-evaluation",
+        "mcp",
+        "model-context-protocol",
+        "python",
+        "reinforcement-learning",
+        "reinforcement-learning-environments",
+        "sandbox"
+      ],
+      "language": "Python",
+      "fork": false,
+      "archived": false,
+      "owner": {
+        "login": "scaleapi"
+      },
+      "license": {
+        "spdx_id": "Apache-2.0"
+      }
+    },
+    {
+      "id": 1379601713,
+      "full_name": "Simreal-AI/Simreal-MLBench",
+      "html_url": "https://github.com/Simreal-AI/Simreal-MLBench",
+      "description": "[Public preview] Externally scored agentic ML research benchmark: 60 tasks, real competition ground truth. Open protocol, operated evaluation.",
+      "stargazers_count": 301,
+      "forks_count": 40,
+      "created_at": "2026-09-21T11:29:47Z",
+      "pushed_at": "2026-09-24T18:06:50Z",
+      "topics": [
+        "agentic",
+        "ai-evaluation",
+        "benchmark",
+        "benchmarking",
+        "calibration",
+        "llm",
+        "llm-agents",
+        "llms",
+        "machine-learning",
+        "metacognition-in-llms",
+        "public-preview",
+        "rl-environment",
+        "rsi",
+        "simreal"
+      ],
+      "language": "Python",
+      "fork": false,
+      "archived": false,
+      "owner": {
+        "login": "Simreal-AI"
+      },
+      "license": {
+        "spdx_id": "Apache-2.0"
+      }
+    },
+    {
+      "id": 1408334244,
+      "full_name": "fudan-generative-vision/Remory",
+      "html_url": "https://github.com/fudan-generative-vision/Remory",
+      "description": "Remory: Learning Residual Memory for Context Compaction",
+      "stargazers_count": 288,
+      "forks_count": 28,
+      "created_at": "2026-10-07T06:10:54Z",
+      "pushed_at": "2026-10-18T15:22:43Z",
+      "topics": [
+        "context-compaction",
+        "inference",
+        "llm-agents",
+        "residual-memory"
+      ],
+      "language": "Python",
+      "fork": false,
+      "archived": false,
+      "owner": {
+        "login": "fudan-generative-vision"
+      },
+      "license": {
+        "spdx_id": "MIT"
+      }
+    },
+    {
+      "id": 1394675848,
+      "full_name": "Akun-python/autumn-recruitment",
+      "html_url": "https://github.com/Akun-python/autumn-recruitment",
+      "description": "Autumn-Recruit Algo Notes(\u79cb\u62db\u7b97\u6cd5\u5b66\u4e60\u4ed3\u5e93)\uff0c\u9762\u5411\u5927\u6a21\u578b\u65f6\u4ee3\u7684\u7b97\u6cd5\u3001\u5de5\u7a0b\u4e0eAI\u5b66\u4e60\u5171\u5efa\u4ed3\u5e93\u3002\u4ece\u6570\u5b66\u57fa\u7840\u3001\u6570\u636e\u7ed3\u6784\uff0c\u5230\u673a\u5668\u5b66\u4e60\u3001\u6df1\u5ea6\u5b66\u4e60\u3001LLM\u3001Agent\u3001AI-Infra\u3001\u8bed\u97f3\u4e0e\u6570\u636e\u79d1\u5b66\uff0c\u901a\u8fc7\u300c\u7406\u89e3\u2192\u63a8\u5bfc\u2192\u624b\u5199 \u2192 \u8fd0\u884c \u2192 \u9a8c\u8bc1 \u2192 \u590d\u76d8\u6784\u5efa\u53ef\u6301\u7eed\u8fed\u4ee3\u7684\u77e5\u8bc6\u4f53\u7cfb\u3002",
+      "stargazers_count": 271,
+      "forks_count": 31,
+      "created_at": "2026-09-29T08:00:33Z",
+      "pushed_at": "2026-10-15T13:25:37Z",
+      "topics": [
+        "ai-agent",
+        "ai-agents",
+        "ai-infrastructure",
+        "algorithms",
+        "algorithms-and-data-structures",
+        "autumn-recruit",
+        "autumn-recruiting",
+        "deep-learning",
+        "deep-learning-algorithms",
+        "interview-preparation",
+        "llm",
+        "llm-agents"
+      ],
+      "language": "Jupyter Notebook",
+      "fork": false,
+      "archived": false,
+      "owner": {
+        "login": "Akun-python"
+      },
+      "license": {
+        "spdx_id": "MIT"
+      }
+    }
+  ]
+}

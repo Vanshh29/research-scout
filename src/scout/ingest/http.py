@@ -50,12 +50,13 @@ def get_with_retry(
     url: str,
     *,
     params: Mapping[str, Any] | None = None,
+    headers: Mapping[str, str] | None = None,
     max_retries: int = 4,
     sleep: Callable[[float], None] = time.sleep,
 ) -> httpx.Response:
     for attempt in range(max_retries + 1):
         try:
-            resp = client.get(url, params=params)
+            resp = client.get(url, params=params, headers=headers)
         except httpx.TransportError as exc:
             if attempt == max_retries:
                 raise FetchError(f"{url}: {exc}") from exc

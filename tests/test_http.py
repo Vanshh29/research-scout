@@ -74,3 +74,14 @@ def test_gives_up_after_max_retries_on_network_error() -> None:
 def test_make_client_sets_user_agent() -> None:
     client = make_client(user_agent="research-scout/test", timeout_s=5)
     assert client.headers["User-Agent"] == "research-scout/test"
+
+
+def test_per_request_headers_are_sent() -> None:
+    seen: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("X-Test"))
+        return httpx.Response(200)
+
+    get_with_retry(_client(httpx.MockTransport(handler)), "https://x.test", headers={"X-Test": "1"})
+    assert seen == ["1"]

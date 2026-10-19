@@ -5,9 +5,8 @@ from typing import Annotated
 import typer
 
 from scout.config import Settings, load_sources
-from scout.ingest.arxiv import ArxivSource
-from scout.ingest.base import Source
 from scout.ingest.http import make_client
+from scout.ingest.registry import build_sources
 from scout.ingest.run import ingest_sources
 from scout.log import configure_logging
 from scout.store.db import connect, count_items, migrate
@@ -31,7 +30,7 @@ def ingest(
     configure_logging(settings.log_level)
     cfg = load_sources(settings.config_dir / "sources.yaml")
 
-    sources: list[Source] = [ArxivSource(cfg.arxiv, max_retries=cfg.http.max_retries)]
+    sources = build_sources(cfg, settings)
     if source:
         sources = [s for s in sources if s.name in source]
 
