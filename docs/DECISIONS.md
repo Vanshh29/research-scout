@@ -144,3 +144,23 @@ rephrase, so the actual defense is delimiting plus a system prompt that says doc
 data (added with the LLM layer on Day 3, with a canary test against the Fake provider). Storing
 truncated bodies means a long post is summarized from its first 8000 characters; acceptable for
 triage, noted as a limitation.
+
+---
+
+## ADR-009: n8n as an optional delivery layer, not a replacement for the pipeline
+
+**Context.** n8n (visual workflow automation) is a common requirement in automation and
+AI-workflow roles. Moving ranking or summarization into it would make them hard to test, version
+and evaluate.
+
+**Options.** (a) Rebuild the pipeline in n8n. (b) Skip n8n. (c) Keep the pipeline in Python and let
+n8n handle routing: brief delivery, failure alerts, feedback buttons.
+
+**Decision.** (c). `scout brief` POSTs the brief as JSON to `SCOUT_N8N_WEBHOOK_URL` when it is set
+and does nothing when it isn't. Python Telegram delivery stays the default. Importable workflow
+exports live in `n8n/` with no credentials inside, documented in `docs/n8n.md`.
+
+**Consequences.** Tests, evals and the cost guard stay in code. n8n needs a host (Docker locally or
+n8n Cloud); the free Render tier is unsuitable, and GitHub Actions cannot reach a local instance, so
+the live demo is a recording or a cloud webhook. Workflows are a bonus and the first item cut if the
+schedule slips.
