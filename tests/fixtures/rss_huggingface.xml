@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+ <channel>
+  <atom:link href="https://huggingface.co/blog/feed.xml" rel="self" type="application/rss+xml"/>
+  <title>Hugging Face - Blog</title>
+  <link>https://huggingface.co/blog</link>
+  <description>The Hugging Face blog</description>
+  <language>en-US</language>
+  <item>
+   <title>Scaling Indic Pretraining: 2.8 Trillion Tokens and an Open Data Generation Pipeline</title>
+   <pubDate>Fri, 16 Oct 2026 01:44:47 GMT</pubDate>
+   <link>https://huggingface.co/blog/nvidia/scaling-indic-pretraining</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/nvidia/scaling-indic-pretraining</guid>
+  </item><item>
+   <title>Welcome Beam: a 501B open model you can own, customize, and scale</title>
+   <pubDate>Fri, 16 Oct 2026 00:00:00 GMT</pubDate>
+   <link>https://huggingface.co/blog/reflection-beam</link>
+   <guid isPermaLink="true">https://huggingface.co/blog/reflection-beam</guid>
+  </item><item>
+   <title>Granite Switch 4.1: Chat, Decisions, and Speech from One Endpoint</title>
+   <pubDate>Thu, 15 Oct 2026 20:34:01 GMT</pubDate>
+   <link>https://huggingface.co/blog/ibm-granite/granite-switch-4-1</link>
+   <guid isPermaLink="false">https://huggingface.co/blog/ibm-granite/granite-switch-4-1</guid>
+  </item></channel></rss>

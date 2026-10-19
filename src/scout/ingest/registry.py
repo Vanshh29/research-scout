@@ -4,6 +4,7 @@ from scout.config import Settings, SourcesConfig
 from scout.ingest.arxiv import ArxivSource
 from scout.ingest.base import Source
 from scout.ingest.github import GithubSource
+from scout.ingest.rss import RssSource
 
 
 def build_sources(cfg: SourcesConfig, settings: Settings) -> list[Source]:
@@ -11,4 +12,5 @@ def build_sources(cfg: SourcesConfig, settings: Settings) -> list[Source]:
     return [
         ArxivSource(cfg.arxiv, max_retries=retries),
         GithubSource(cfg.github, token=settings.github_token, max_retries=retries),
+        RssSource(cfg.rss, max_retries=retries),
     ]
