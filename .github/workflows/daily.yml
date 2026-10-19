@@ -1,0 +1,49 @@
+name: daily
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC, about 08:00 in Berlin
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish the data snapshot as a release asset
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked
+
+      - name: Restore the previous snapshot
+        run: |
+          mkdir -p data
+          gh release download data --pattern scout.db --dir data || echo "no snapshot yet, starting fresh"
+
+      - name: Run the pipeline
+        run: uv run scout run-daily --trigger cron
+
+      - name: Publish the snapshot
+        run: |
+          uv run scout snapshot --out snapshot/scout.db
+          gh release view data >/dev/null 2>&1 || gh release create data \
+            --title "Data snapshot" \
+            --notes "Latest scout.db. Replaced by the daily workflow; the dashboard reads it on boot."
+          gh release upload data snapshot/scout.db --clobber
+
+      - name: Trigger a dashboard redeploy
+        if: env.RENDER_DEPLOY_HOOK != ''
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
