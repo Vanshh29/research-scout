@@ -108,6 +108,7 @@ Goal: a real ranked brief arrives on Telegram.
 - Summarizer (`prompts/summarize_v1.md`, pydantic-validated JSON)
 - Local embeddings + hybrid ranking with score breakdown
 - `scout brief` + Telegram + failure alerts
+- Optional n8n hook: `scout brief` POSTs the brief JSON to `SCOUT_N8N_WEBHOOK_URL` when set (ADR-009)
 - Minimal `scout label` → **start labeling 10 items/day** (de-risks Day 6)
 
 ### Day 4 — Wed 21 Oct · Vector search + knowledge graph
@@ -129,6 +130,7 @@ Graph explorer (Cytoscape.js) → feedback buttons + Rocchio update.
 ### Day 7 — Sat 24 Oct · Deploy + polish
 - Dockerfile, Render deploy, `/healthz`, secrets, demo mode with seeded snapshot
 - Verify in a private window as a stranger
+- n8n workflows (`n8n/*.json`: daily brief, failure alert, feedback) + `docs/n8n.md`; first item to cut if behind
 - README (problem → GIF → live link → results table → architecture → quickstart → lessons →
   limitations → next), secrets scan of history, tag `day-7` + `v1.0.0`
 
