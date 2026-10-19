@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from scout.models import Item, content_hash
-from scout.store.db import connect, count_items, get_item, migrate, upsert_item
+from scout.store.db import connect, count_items, get_item, migrate, snapshot, upsert_item
 
 
 def make_item(**overrides: object) -> Item:
@@ -62,3 +62,16 @@ def test_item_roundtrip(conn: sqlite3.Connection) -> None:
     item = make_item()
     upsert_item(conn, item)
     assert get_item(conn, item.id) == item
+
+
+def test_snapshot_is_a_standalone_copy(conn: sqlite3.Connection, tmp_path: Path) -> None:
+    upsert_item(conn, make_item())
+    out = tmp_path / "snap" / "scout.db"
+    snapshot(conn, out)
+    copy = connect(out)
+    assert count_items(copy) == 1
+    assert (
+        copy.execute("PRAGMA user_version").fetchone()[0]
+        == conn.execute("PRAGMA user_version").fetchone()[0]
+    )
+    snapshot(conn, out)  # overwriting an existing snapshot works

@@ -114,3 +114,10 @@ def count_items(conn: sqlite3.Connection, source: str | None = None) -> int:
             0
         ]
     return result
+
+
+def snapshot(conn: sqlite3.Connection, out: Path) -> None:
+    """Write a compact, self-contained copy of the database (no WAL sidecar files)."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.unlink(missing_ok=True)
+    conn.execute("VACUUM INTO ?", (str(out),))

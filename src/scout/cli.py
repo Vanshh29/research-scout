@@ -1,6 +1,7 @@
 """`scout` command-line interface. Each pipeline stage is its own idempotent command."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -13,6 +14,7 @@ from scout.ingest.run import SourceReport, ingest_sources
 from scout.log import configure_logging
 from scout.scheduler.run_daily import run_daily
 from scout.store.db import connect, count_items, migrate
+from scout.store.db import snapshot as write_snapshot
 from scout.store.runs import last_run, source_statuses
 
 app = typer.Typer(help="Research Scout: daily research ingestion, ranking, and evaluation.")
@@ -107,3 +109,12 @@ def status() -> None:
             f"  {s['source']:<8} {s['status']:<6} fetched={s['items_fetched']} "
             f"new={s['items_new']}" + (f"  error={s['error']}" if s["error"] else "")
         )
+
+
+@app.command()
+def snapshot(out: Annotated[Path, typer.Option(help="Where to write the copy.")]) -> None:
+    """Write a standalone copy of the database (published for the dashboard)."""
+    settings = Settings()
+    conn = connect(settings.db_path)
+    write_snapshot(conn, out)
+    typer.echo(f"snapshot written to {out} ({out.stat().st_size} bytes)")
