@@ -36,7 +36,9 @@ class LLMClient:
         self._conn = conn
         self._provider = provider
         self._config = config
-        self._limiter = limiter or RateLimiter(config.requests_per_minute)
+        # the offline provider has no quota to respect
+        rpm = 0 if provider.name == "fake" else config.requests_per_minute
+        self._limiter = limiter or RateLimiter(rpm)
         self.tokens_used = 0
         self.cost_usd = 0.0
         self.calls = 0

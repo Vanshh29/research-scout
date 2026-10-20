@@ -25,9 +25,27 @@ def _summary_json(prompt: str) -> str:
     )
 
 
+def _score_json(prompt: str) -> str:
+    """Valid rubric JSON: deterministic per document; more topic words score higher."""
+    h = int(hashlib.sha256(prompt.encode()).hexdigest(), 16)
+    hits = len(re.findall(r"\b(?:agent|agents|rag|retrieval|eval|benchmark|judge)\b", prompt, re.I))
+    base = min(0.9, 0.2 + 0.1 * hits)
+    return json.dumps(
+        {
+            "relevance": base,
+            "novelty": round(0.3 + (h % 40) / 100, 2),
+            "evidence_quality": round(0.3 + ((h >> 8) % 40) / 100, 2),
+            "actionability": round(0.3 + ((h >> 16) % 40) / 100, 2),
+            "reason": "Fake rubric score (offline provider).",
+        }
+    )
+
+
 def _default_responder(system: str, prompt: str) -> str:
     if "[task:summarize]" in system:
         return _summary_json(prompt)
+    if "[task:score]" in system:
+        return _score_json(prompt)
     return "fake:" + hashlib.sha256(f"{system}\n{prompt}".encode()).hexdigest()[:12]
 
 
