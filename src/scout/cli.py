@@ -6,7 +6,13 @@ from typing import Annotated
 
 import typer
 
-from scout.config import Settings, SourcesConfig, load_llm_config, load_sources
+from scout.config import (
+    Settings,
+    SourcesConfig,
+    load_llm_config,
+    load_profile,
+    load_sources,
+)
 from scout.ingest.base import Source
 from scout.ingest.http import make_client
 from scout.ingest.registry import build_sources
@@ -15,6 +21,9 @@ from scout.llm.base import LLMError
 from scout.llm.client import LLMClient, make_provider
 from scout.log import configure_logging
 from scout.process.summarize import summarize_pending
+from scout.rank.embed_score import embed_items
+from scout.rank.embedder import Embedder, FastEmbedder, HashEmbedder
+from scout.rank.hybrid import rank_items, recent_items
 from scout.scheduler.run_daily import run_daily
 from scout.store.db import connect, count_items, migrate
 from scout.store.db import snapshot as write_snapshot
@@ -144,4 +153,51 @@ def summarize(
         f"summarized={report.done} failed={report.failed} cached={report.cached} "
         f"llm_calls={client.calls} tokens={client.tokens_used}"
         + ("  BUDGET HIT" if report.budget_hit else "")
+    )
+
+
+def _make_embedder(settings: Settings) -> Embedder:
+    return HashEmbedder() if settings.llm_provider == "fake" else FastEmbedder()
+
+
+@app.command()
+def embed(
+    since_days: Annotated[int, typer.Option(help="Only items first seen this recently.")] = 7,
+) -> None:
+    """Embed recent items locally (no API key needed)."""
+    from datetime import UTC, datetime, timedelta
+
+    settings = Settings()
+    configure_logging(settings.log_level)
+    conn = connect(settings.db_path)
+    migrate(conn)
+    rows = recent_items(conn, datetime.now(UTC) - timedelta(days=since_days))
+    n = embed_items(conn, _make_embedder(settings), [r["id"] for r in rows])
+    typer.echo(f"embedded={n} of {len(rows)} recent items")
+
+
+@app.command()
+def rank(
+    since_days: Annotated[int, typer.Option(help="Only items first seen this recently.")] = 7,
+    no_llm: Annotated[bool, typer.Option(help="Embedding-only ranking.")] = False,
+) -> None:
+    """Score recent items: embedding pass, then LLM rubric for the top-K, blended."""
+    settings = Settings()
+    configure_logging(settings.log_level)
+    profile = load_profile(settings.config_dir / "profile.yaml")
+    llm_cfg = load_llm_config(settings.config_dir / "llm.yaml")
+    conn = connect(settings.db_path)
+    migrate(conn)
+    client: LLMClient | None = None
+    if not no_llm:
+        try:
+            client = LLMClient(conn, make_provider(settings, llm_cfg), llm_cfg)
+        except LLMError as exc:
+            typer.echo(f"no LLM scoring ({exc}); falling back to embedding-only", err=True)
+    report = rank_items(
+        conn, _make_embedder(settings), client, profile, settings.prompts_dir, since_days=since_days
+    )
+    typer.echo(
+        f"candidates={report.candidates} embedded={report.embedded} llm_scored={report.llm_scored} "
+        f"llm_failed={report.llm_failed}" + ("  BUDGET HIT" if report.budget_hit else "")
     )
