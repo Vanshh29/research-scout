@@ -164,3 +164,49 @@ exports live in `n8n/` with no credentials inside, documented in `docs/n8n.md`.
 n8n Cloud); the free Render tier is unsuitable, and GitHub Actions cannot reach a local instance, so
 the live demo is a recording or a cloud webhook. Workflows are a bonus and the first item cut if the
 schedule slips.
+
+---
+
+## ADR-010: fastembed (ONNX) for local embeddings; LLM providers over plain httpx
+
+**Context.** The stack line said sentence-transformers. It pulls in torch (1-2 GB), which would slow
+CI and the daily GitHub Action and make the free-tier cron fragile. Separately, the official Gemini
+and Anthropic SDKs are extra dependencies for what is one POST call each.
+
+**Options.** (a) sentence-transformers. (b) fastembed: ONNX runtime, no torch, same class of small
+embedding models. (c) Hash embeddings only. For providers: (a) vendor SDKs, (b) REST via httpx.
+
+**Decision.** fastembed with `BAAI/bge-small-en-v1.5` (384 dims, about 130 MB, downloaded once and
+cached in the workflow). A deterministic `HashEmbedder` serves tests and the Fake provider. Gemini and
+Anthropic are called through httpx, reusing the project's backoff helper and `MockTransport` test
+pattern. API keys go in headers, never URLs.
+
+**Consequences.** Light installs and fully offline tests. We own the request/response parsing, so a
+provider API change breaks us until we update it; fixtures pin today's shapes. The embedding score
+maps cosine similarity linearly from a model-specific range (`score_range`) to 0..1; those constants
+are calibrated by eye on real data and should be revisited once labels exist (Day 6).
+
+---
+
+## ADR-011: LLM cache, budget guard and two-stage ranking
+
+**Context.** The daily run must be cheap, repeatable and honest about what it skipped.
+
+**Decision.**
+- Cache key is `sha256(prompt_version | model | content_hash)` (ADR-003). A reply is cached only
+  after it passes validation, so a malformed reply is paid for once and never replayed.
+- Budget guard: before each call, estimate tokens (about 4 characters each) plus the output cap and
+  compare with today's recorded usage (`llm_usage`, per UTC day). Over the token or cost cap raises
+  `BudgetExceeded`; stages stop, flag it, and the brief says so. Cached calls cost nothing.
+- Rate limiter: minimum interval between calls from `requests_per_minute`; disabled for Fake.
+- Ranking is two-stage: a free embedding score over items first seen in the last 7 days, then the LLM
+  rubric (relevance, novelty, evidence quality, actionability, weighted by `profile.yaml`) for the
+  top-K only. `hybrid = w_emb * embed + w_llm * llm`; items without an LLM score keep their embedding
+  score. The full breakdown is stored in `scores`.
+- An item appears in at most one brief (`brief_items`); a failed Telegram send does not mark items
+  shown, so the next run retries them.
+
+**Consequences.** The token estimate is rough, so the cap is approximate, not exact. First-pass
+filtering uses embeddings instead of a cheap LLM, which saves quota but can miss items whose title
+looks off-topic. Using one model for summaries and scores keeps config simple; a stronger model for
+top-K is a config change away (`gemini_strong_model` exists but is not wired yet).
