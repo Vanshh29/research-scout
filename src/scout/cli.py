@@ -16,6 +16,7 @@ from scout.config import (
     load_sources,
 )
 from scout.deliver.telegram import DeliveryError, send_message
+from scout.eval.labeler_cli import label_count, run_labeling
 from scout.ingest.base import Source
 from scout.ingest.http import make_client
 from scout.ingest.registry import build_sources
@@ -262,3 +263,13 @@ def brief(
         raise typer.Exit(1) from exc
     record_brief(conn, b, run_id=None)
     typer.echo("sent")
+
+
+@app.command()
+def label(n: Annotated[int, typer.Option(help="How many items this session.")] = 10) -> None:
+    """Hand-label items (relevance 0-3, summary quality 1-5). Ground truth for the eval."""
+    settings = Settings()
+    conn = connect(settings.db_path)
+    migrate(conn)
+    saved = run_labeling(conn, n, say=typer.echo)
+    typer.echo(f"saved {saved} labels; {label_count(conn)} total")
