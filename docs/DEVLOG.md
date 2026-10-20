@@ -62,3 +62,34 @@
 - Summarizer with a versioned prompt, plus the canary test against the Fake provider.
 - Local embeddings, hybrid ranking with score breakdown, `scout brief` and Telegram.
 - Minimal `scout label`.
+
+## Day 3 — 2026-10-20 · LLM layer, ranking, brief, labels
+
+**What changed**
+- `llm/`: provider protocol with Gemini, Anthropic (both plain httpx) and a deterministic Fake;
+  response cache, daily token/cost budget guard, rate limiter. Keys travel in headers, never URLs.
+- Summarizer with `prompts/summarize_v1.md`: untrusted text goes through `wrap_document`, replies are
+  validated JSON, bad replies are rejected and not cached. Canary tests reuse the Day 2 poisoned feed.
+- Ranking: fastembed (`bge-small`) embeddings, rubric LLM score for the top-K, hybrid blend with the
+  full breakdown stored. Real run: 561 items embedded locally; the top results were RAG, tool-using
+  agents, and agent evaluation papers.
+- `scout brief`, Telegram (HTML, escaped) and the optional n8n webhook. `run-daily` now chains
+  ingest, summarize, rank, brief, deliver; writes tokens and cost to the run row; sends a failure alert.
+- `scout label` (relevance 0-3, summary ratings 1-5), items shown in a fixed pseudo-random order so
+  the label set is not biased toward top-ranked items.
+- ADR-010 (fastembed, httpx providers), ADR-011 (cache, budget, two-stage ranking). 137 tests, all offline.
+
+**What surprised me**
+- Caching the raw model reply is a trap: a malformed reply would be replayed forever. The client now
+  caches only after validation (found by a canary test, not by thinking ahead).
+- A 10 requests/minute limiter made the Fake provider crawl; offline runs now skip it.
+- The Mac booted at 13:06, so launchd never fired the 13:00 agent (it does not replay missed runs
+  after a shutdown), and a second launchd problem reads scripts from Desktop (macOS privacy).
+
+**Not done / waiting on me**
+- No real Gemini or Telegram run yet: no keys. Everything is tested against Fake and mocked transports.
+- The 30 hand labels have not started.
+
+**What's next (Day 4)**
+- sqlite-vec storage (CI must load it on ubuntu), semantic search, "more like this".
+- Entity and relation extraction, graph build and queries.
