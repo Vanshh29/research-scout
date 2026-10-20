@@ -1,11 +1,13 @@
 """`scout` command-line interface. Each pipeline stage is its own idempotent command."""
 
+import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
+from scout.brief import build_brief, record_brief, render_telegram, render_text
 from scout.config import (
     Settings,
     SourcesConfig,
@@ -13,6 +15,7 @@ from scout.config import (
     load_profile,
     load_sources,
 )
+from scout.deliver.telegram import DeliveryError, send_message
 from scout.ingest.base import Source
 from scout.ingest.http import make_client
 from scout.ingest.registry import build_sources
@@ -24,7 +27,7 @@ from scout.process.summarize import summarize_pending
 from scout.rank.embed_score import embed_items
 from scout.rank.embedder import Embedder, FastEmbedder, HashEmbedder
 from scout.rank.hybrid import rank_items, recent_items
-from scout.scheduler.run_daily import run_daily
+from scout.scheduler.run_daily import Pipeline, run_daily
 from scout.store.db import connect, count_items, migrate
 from scout.store.db import snapshot as write_snapshot
 from scout.store.runs import last_run, source_statuses
@@ -74,6 +77,26 @@ def ingest(source: SourceOption = None) -> None:
         raise typer.Exit(code=1)
 
 
+def _build_pipeline(settings: Settings, conn: sqlite3.Connection) -> Pipeline:
+    llm_cfg = load_llm_config(settings.config_dir / "llm.yaml")
+    llm: LLMClient | None = None
+    note: str | None = None
+    try:
+        llm = LLMClient(conn, make_provider(settings, llm_cfg), llm_cfg)
+    except LLMError as exc:
+        note = f"LLM unavailable ({exc}); summaries skipped, ranking is embedding-only."
+    return Pipeline(
+        embedder=_make_embedder(settings),
+        profile=load_profile(settings.config_dir / "profile.yaml"),
+        prompts_dir=settings.prompts_dir,
+        llm=llm,
+        llm_note=note,
+        telegram_token=settings.telegram_bot_token,
+        telegram_chat_id=settings.telegram_chat_id,
+        webhook_url=settings.n8n_webhook_url,
+    )
+
+
 @app.command("run-daily")
 def run_daily_cmd(
     source: SourceOption = None,
@@ -89,10 +112,13 @@ def run_daily_cmd(
 
     conn = connect(settings.db_path)
     migrate(conn)
+    pipeline = _build_pipeline(settings, conn)
     with make_client(user_agent=cfg.http.user_agent, timeout_s=cfg.http.timeout_s) as client:
-        summary = run_daily(conn, sources, client, trigger=trigger)
+        summary = run_daily(conn, sources, client, trigger=trigger, pipeline=pipeline)
 
     _echo_reports(summary.reports)
+    if summary.brief is not None:
+        typer.echo(render_text(summary.brief))
     typer.echo(
         f"run #{summary.run_id} {summary.status}: fetched={summary.items_fetched} "
         f"new={summary.items_new} {summary.latency_ms}ms; total items in db: {count_items(conn)}"
@@ -201,3 +227,38 @@ def rank(
         f"candidates={report.candidates} embedded={report.embedded} llm_scored={report.llm_scored} "
         f"llm_failed={report.llm_failed}" + ("  BUDGET HIT" if report.budget_hit else "")
     )
+
+
+@app.command()
+def brief(
+    send: Annotated[
+        bool, typer.Option(help="Deliver via Telegram and mark items as shown.")
+    ] = False,
+    since_days: Annotated[int, typer.Option(help="Look back this many days.")] = 7,
+) -> None:
+    """Print today's top items from the ranked set (preview only unless --send)."""
+    settings = Settings()
+    configure_logging(settings.log_level)
+    profile = load_profile(settings.config_dir / "profile.yaml")
+    conn = connect(settings.db_path)
+    migrate(conn)
+    b = build_brief(conn, top_n=profile.top_n, since_days=since_days)
+    typer.echo(render_text(b))
+    if not send:
+        return
+    if not (settings.telegram_bot_token and settings.telegram_chat_id):
+        typer.echo("TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; nothing sent", err=True)
+        raise typer.Exit(1)
+    try:
+        with make_client(user_agent="research-scout/0.1", timeout_s=30.0) as client:
+            send_message(
+                client,
+                token=settings.telegram_bot_token,
+                chat_id=settings.telegram_chat_id,
+                text=render_telegram(b),
+            )
+    except DeliveryError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    record_brief(conn, b, run_id=None)
+    typer.echo("sent")

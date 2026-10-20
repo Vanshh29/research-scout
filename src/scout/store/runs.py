@@ -38,6 +38,8 @@ def finish_run(
     reports: Sequence[SourceReport],
     *,
     latency_ms: int,
+    tokens: int = 0,
+    cost_usd: float = 0.0,
     now: datetime | None = None,
 ) -> str:
     status = run_status(reports)
@@ -53,7 +55,7 @@ def finish_run(
         )
         conn.execute(
             """UPDATE runs SET finished_at = ?, status = ?, items_fetched = ?, items_new = ?,
-                   items_failed = ?, latency_ms = ? WHERE id = ?""",
+                   items_failed = ?, latency_ms = ?, tokens = ?, cost_usd = ? WHERE id = ?""",
             (
                 (now or datetime.now(UTC)).isoformat(),
                 status,
@@ -61,6 +63,8 @@ def finish_run(
                 sum(r.new for r in reports),
                 sum(1 for r in reports if r.status == "failed"),
                 latency_ms,
+                tokens,
+                cost_usd,
                 run_id,
             ),
         )
