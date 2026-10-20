@@ -29,6 +29,18 @@ fmt:
 ingest: fix-pth
     uv run scout ingest
 
+summarize: fix-pth
+    uv run scout summarize
+
+rank: fix-pth
+    uv run scout rank
+
+brief: fix-pth
+    uv run scout brief
+
+label: fix-pth
+    uv run scout label
+
 run-daily: fix-pth
     uv run scout run-daily
 
