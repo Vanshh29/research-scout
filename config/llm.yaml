@@ -1,0 +1,12 @@
+# Model names, rate limits, and the daily budget. Change here, never in code (ADR-004).
+gemini_model: gemini-2.5-flash        # cheap first-pass model; verify the current name in AI Studio
+gemini_strong_model: gemini-2.5-pro   # only used for the top-K candidates
+anthropic_model: claude-haiku-5-5
+anthropic_strong_model: claude-sonnet-5-5
+requests_per_minute: 10               # stay under the free-tier limit
+max_output_tokens: 700
+daily_token_budget: 200000            # hard stop; the brief says so when it trips
+daily_cost_budget_usd: 0.50
+# USD per 1M tokens, used for the cost estimate (0 on the Gemini free tier)
+price_in_per_mtok: 0.0
+price_out_per_mtok: 0.0
