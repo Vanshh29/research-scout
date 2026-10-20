@@ -2,6 +2,7 @@
 
 import hashlib
 import sqlite3
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from scout.config import LLMConfig, Settings
@@ -59,9 +60,18 @@ class LLMClient:
         return (input_tokens * c.price_in_per_mtok + output_tokens * c.price_out_per_mtok) / 1e6
 
     def complete(
-        self, *, system: str, prompt: str, prompt_version: str, content_hash: str
+        self,
+        *,
+        system: str,
+        prompt: str,
+        prompt_version: str,
+        content_hash: str,
+        validate: Callable[[str], object] | None = None,
     ) -> LLMResult:
-        """Return a cached response if present; otherwise call the provider within budget."""
+        """Return a cached response if present; otherwise call the provider within budget.
+
+        If `validate` is given, a reply is cached only after it passes (it may raise
+        ValueError), so a malformed reply is paid for once but never replayed from cache."""
         key = cache_key(prompt_version, self._provider.model, content_hash)
         row = self._conn.execute("SELECT * FROM llm_cache WHERE cache_key = ?", (key,)).fetchone()
         if row is not None:
@@ -88,22 +98,29 @@ class LLMClient:
         self._limiter.wait()
         result = self._provider.complete(system=system, prompt=prompt, max_output_tokens=max_out)
         cost = self._cost(result.input_tokens, result.output_tokens)
+        valid = True
+        if validate is not None:
+            try:
+                validate(result.text)
+            except ValueError:
+                valid = False
         with self._conn:
-            self._conn.execute(
-                """INSERT INTO llm_cache (cache_key, prompt_version, model, content_hash,
-                       response, input_tokens, output_tokens, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    key,
-                    prompt_version,
-                    result.model,
-                    content_hash,
-                    result.text,
-                    result.input_tokens,
-                    result.output_tokens,
-                    datetime.now(UTC).isoformat(),
-                ),
-            )
+            if valid:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO llm_cache (cache_key, prompt_version, model,
+                           content_hash, response, input_tokens, output_tokens, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        key,
+                        prompt_version,
+                        result.model,
+                        content_hash,
+                        result.text,
+                        result.input_tokens,
+                        result.output_tokens,
+                        datetime.now(UTC).isoformat(),
+                    ),
+                )
             self._conn.execute(
                 """INSERT INTO llm_usage (day, model, input_tokens, output_tokens, cost_usd)
                    VALUES (?, ?, ?, ?, ?)""",

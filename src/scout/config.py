@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     db_path: Path = Field(default=Path("data/scout.db"), alias="SCOUT_DB_PATH")
     log_level: str = Field(default="INFO", alias="SCOUT_LOG_LEVEL")
     config_dir: Path = Field(default=Path("config"), alias="SCOUT_CONFIG_DIR")
+    prompts_dir: Path = Field(default=Path("prompts"), alias="SCOUT_PROMPTS_DIR")
     llm_provider: Literal["gemini", "anthropic", "fake"] = Field(
         default="gemini", alias="SCOUT_LLM_PROVIDER"
     )

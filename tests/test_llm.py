@@ -182,3 +182,16 @@ def test_make_provider_requires_key_and_supports_fake() -> None:
     assert make_provider(Settings(SCOUT_LLM_PROVIDER="fake"), cfg).name == "fake"  # type: ignore[call-arg]
     with pytest.raises(LLMError):
         make_provider(Settings(SCOUT_LLM_PROVIDER="gemini", GEMINI_API_KEY=None), cfg)  # type: ignore[call-arg]
+
+
+def test_invalid_reply_is_billed_but_not_cached(conn: sqlite3.Connection) -> None:
+    def must_be_json(text: str) -> None:
+        json.loads(text)
+
+    client, fake = make_client(conn)
+    for _ in range(2):
+        client.complete(
+            system="s", prompt="p", prompt_version="v1", content_hash="h", validate=must_be_json
+        )
+    assert fake.calls == 2 and client.cache_hits == 0
+    assert client.spent_today()[0] == client.tokens_used > 0

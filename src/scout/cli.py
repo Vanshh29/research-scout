@@ -6,12 +6,15 @@ from typing import Annotated
 
 import typer
 
-from scout.config import Settings, SourcesConfig, load_sources
+from scout.config import Settings, SourcesConfig, load_llm_config, load_sources
 from scout.ingest.base import Source
 from scout.ingest.http import make_client
 from scout.ingest.registry import build_sources
 from scout.ingest.run import SourceReport, ingest_sources
+from scout.llm.base import LLMError
+from scout.llm.client import LLMClient, make_provider
 from scout.log import configure_logging
+from scout.process.summarize import summarize_pending
 from scout.scheduler.run_daily import run_daily
 from scout.store.db import connect, count_items, migrate
 from scout.store.db import snapshot as write_snapshot
@@ -118,3 +121,27 @@ def snapshot(out: Annotated[Path, typer.Option(help="Where to write the copy.")]
     conn = connect(settings.db_path)
     write_snapshot(conn, out)
     typer.echo(f"snapshot written to {out} ({out.stat().st_size} bytes)")
+
+
+@app.command()
+def summarize(
+    limit: Annotated[int | None, typer.Option(help="Max items this run.")] = None,
+) -> None:
+    """Summarize items that have no summary yet (cached, budget-guarded)."""
+    settings = Settings()
+    configure_logging(settings.log_level)
+    llm_cfg = load_llm_config(settings.config_dir / "llm.yaml")
+    conn = connect(settings.db_path)
+    migrate(conn)
+    try:
+        provider = make_provider(settings, llm_cfg)
+    except LLMError as exc:
+        typer.echo(f"cannot summarize: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    client = LLMClient(conn, provider, llm_cfg)
+    report = summarize_pending(conn, client, settings.prompts_dir, limit=limit)
+    typer.echo(
+        f"summarized={report.done} failed={report.failed} cached={report.cached} "
+        f"llm_calls={client.calls} tokens={client.tokens_used}"
+        + ("  BUDGET HIT" if report.budget_hit else "")
+    )
