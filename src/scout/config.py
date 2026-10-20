@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str | None = Field(default=None, alias="TELEGRAM_CHAT_ID")
+    n8n_webhook_url: str | None = Field(default=None, alias="SCOUT_N8N_WEBHOOK_URL")
 
 
 class HttpConfig(BaseModel):
@@ -83,6 +84,19 @@ class Profile(BaseModel):
     top_n: int = Field(default=8, ge=1)
 
 
+class LLMConfig(BaseModel):
+    gemini_model: str = "gemini-2.5-flash"
+    gemini_strong_model: str = "gemini-2.5-pro"
+    anthropic_model: str = "claude-haiku-5-5"
+    anthropic_strong_model: str = "claude-sonnet-5-5"
+    requests_per_minute: float = Field(default=10, ge=0)
+    max_output_tokens: int = Field(default=700, ge=16)
+    daily_token_budget: int = Field(default=200_000, ge=1)
+    daily_cost_budget_usd: float = Field(default=0.50, ge=0)
+    price_in_per_mtok: float = Field(default=0.0, ge=0)
+    price_out_per_mtok: float = Field(default=0.0, ge=0)
+
+
 def _read_yaml(path: Path) -> Any:
     with path.open(encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -94,3 +108,7 @@ def load_sources(path: Path) -> SourcesConfig:
 
 def load_profile(path: Path) -> Profile:
     return Profile.model_validate(_read_yaml(path))
+
+
+def load_llm_config(path: Path) -> LLMConfig:
+    return LLMConfig.model_validate(_read_yaml(path))
