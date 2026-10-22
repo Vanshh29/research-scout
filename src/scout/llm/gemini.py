@@ -59,7 +59,7 @@ class GeminiProvider:
         try:
             candidates = data["candidates"]
             parts = candidates[0]["content"]["parts"]  # type: ignore[index]
-            text = "".join(p["text"] for p in parts)
+            text = "".join(p.get("text", "") for p in parts)
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError("gemini: unexpected response shape") from exc
         usage = data.get("usageMetadata")
