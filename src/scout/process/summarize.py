@@ -6,7 +6,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
 from scout.llm.base import BudgetExceeded, LLMError
 from scout.llm.client import LLMClient
@@ -15,7 +15,11 @@ from scout.process.sanitize import wrap_document
 
 log = get_logger("summarize")
 
-PROMPT_NAME = "summarize_v1"
+PROMPT_NAME = "summarize_v2"
+ENTITY_TYPES = ("Concept", "Method", "Repo", "Org")
+RELATION_TYPES = ("builds_on", "implements", "mentions", "related_to")
+MAX_ENTITIES = 12
+MAX_RELATIONS = 12
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
 _BAD_ESCAPE_RE = re.compile(r'\\(?!["\\/bfnrtu])')
 
@@ -28,10 +32,50 @@ def loads_lenient(text: str) -> object:
         return json.loads(_BAD_ESCAPE_RE.sub(r"\\\\", text))
 
 
+def _canonical(value: str, choices: tuple[str, ...], default: str) -> str:
+    """Map a model-supplied label onto the allowed set (case-insensitive); unknown -> default."""
+    return next((c for c in choices if c.casefold() == value.strip().casefold()), default)
+
+
+class ExtractedEntity(BaseModel):
+    name: str
+    type: str = "Concept"
+    aliases: list[str] = []
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _clip_name(cls, v: object) -> object:
+        return v.strip()[:80] if isinstance(v, str) else v
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _known_type(cls, v: object) -> object:
+        return _canonical(v, ENTITY_TYPES, "Concept") if isinstance(v, str) else "Concept"
+
+    @field_validator("aliases", mode="before")
+    @classmethod
+    def _clip_aliases(cls, v: object) -> object:
+        if isinstance(v, list):
+            return [str(a).strip()[:80] for a in v[:5] if str(a).strip()]
+        return []
+
+
+class Relation(BaseModel):
+    src: str
+    relation: str = "related_to"
+    dst: str
+
+    @field_validator("relation", mode="before")
+    @classmethod
+    def _known_relation(cls, v: object) -> object:
+        return _canonical(v, RELATION_TYPES, "related_to") if isinstance(v, str) else "related_to"
+
+
 class Summary(BaseModel):
     tldr: str
     key_points: list[str] = []
-    entities: list[str] = []
+    entities: list[ExtractedEntity] = []
+    relations: list[Relation] = []
 
     @field_validator("tldr", mode="before")
     @classmethod
@@ -47,10 +91,54 @@ class Summary(BaseModel):
 
     @field_validator("entities", mode="before")
     @classmethod
-    def _clip_entities(cls, v: object) -> object:
-        if isinstance(v, list):
-            return [str(e).strip()[:80] for e in v[:10] if str(e).strip()]
-        return v
+    def _coerce_entities(cls, v: object) -> object:
+        """Accept v1-style plain names as well as v2 objects; drop junk entries, not the summary."""
+        if not isinstance(v, list):
+            return []
+        out: list[object] = []
+        for e in v:
+            if isinstance(e, str):
+                e = {"name": e}
+            if isinstance(e, dict) and isinstance(e.get("name"), str) and e["name"].strip():
+                out.append(e)
+        return out
+
+    @field_validator("relations", mode="before")
+    @classmethod
+    def _coerce_relations(cls, v: object) -> object:
+        if not isinstance(v, list):
+            return []
+        return [
+            r
+            for r in v
+            if isinstance(r, dict)
+            and isinstance(r.get("src"), str)
+            and isinstance(r.get("dst"), str)
+        ]
+
+    @model_validator(mode="after")
+    def _consistent_graph(self) -> "Summary":
+        """Dedupe entities, cap both lists, and keep only relations between listed entities."""
+        seen: dict[str, ExtractedEntity] = {}
+        for e in self.entities:
+            seen.setdefault(e.name.casefold(), e)
+        self.entities = list(seen.values())[:MAX_ENTITIES]
+        names = {e.name.casefold(): e.name for e in self.entities}
+        kept: list[Relation] = []
+        for r in self.relations:
+            src, dst = names.get(r.src.strip().casefold()), names.get(r.dst.strip().casefold())
+            if src and dst and src != dst:
+                kept.append(Relation(src=src, relation=r.relation, dst=dst))
+        self.relations = kept[:MAX_RELATIONS]
+        return self
+
+    def graph_json(self) -> str:
+        return json.dumps(
+            {
+                "entities": [e.model_dump() for e in self.entities],
+                "relations": [r.model_dump() for r in self.relations],
+            }
+        )
 
 
 class SummarizeReport(BaseModel):
@@ -120,7 +208,8 @@ def summarize_pending(
         with conn:
             conn.execute(
                 """INSERT OR REPLACE INTO summaries (item_id, prompt_version, model, content_hash,
-                       tldr, key_points, entities, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                       tldr, key_points, entities, graph_json, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     row["id"],
                     PROMPT_NAME,
@@ -128,7 +217,8 @@ def summarize_pending(
                     row["content_hash"],
                     summary.tldr,
                     json.dumps(summary.key_points),
-                    json.dumps(summary.entities),
+                    json.dumps([e.name for e in summary.entities]),
+                    summary.graph_json(),
                     datetime.now(UTC).isoformat(),
                 ),
             )

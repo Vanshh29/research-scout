@@ -1,6 +1,7 @@
 """Deterministic offline provider for tests, CI, and the public demo."""
 
 import hashlib
+import itertools
 import json
 import re
 from collections.abc import Callable
@@ -16,11 +17,15 @@ def _summary_json(prompt: str) -> str:
     text = (m.group(1) if m else "").strip()
     title = text.split("\n", 1)[0][:120]
     words = [w for w in re.findall(r"[A-Za-z][A-Za-z0-9-]{3,}", text)]
+    names = sorted(set(words[:5]))
     return json.dumps(
         {
             "tldr": f"Fake summary of: {title}",
             "key_points": [f"mentions {w}" for w in words[:3]],
-            "entities": sorted(set(words[:5])),
+            "entities": [{"name": n, "type": "Concept", "aliases": []} for n in names],
+            "relations": [
+                {"src": a, "relation": "related_to", "dst": b} for a, b in itertools.pairwise(names)
+            ][:3],
         }
     )
 

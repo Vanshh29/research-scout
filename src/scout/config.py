@@ -91,7 +91,7 @@ class LLMConfig(BaseModel):
     anthropic_model: str = "claude-haiku-5-5"
     anthropic_strong_model: str = "claude-sonnet-5-5"
     requests_per_minute: float = Field(default=10, ge=0)
-    max_output_tokens: int = Field(default=700, ge=16)
+    max_output_tokens: int = Field(default=1000, ge=16)
     daily_token_budget: int = Field(default=200_000, ge=1)
     daily_cost_budget_usd: float = Field(default=0.50, ge=0)
     price_in_per_mtok: float = Field(default=0.0, ge=0)

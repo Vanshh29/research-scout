@@ -4,7 +4,7 @@ gemini_strong_model: gemini-3.8-flash # reserved for top-K candidates (not wired
 anthropic_model: claude-haiku-5-5
 anthropic_strong_model: claude-sonnet-5-5
 requests_per_minute: 10               # stay under the free-tier limit
-max_output_tokens: 700
+max_output_tokens: 1000
 daily_token_budget: 200000            # hard stop; the brief says so when it trips
 daily_cost_budget_usd: 0.50
 # USD per 1M tokens, used for the cost estimate (0 on the Gemini free tier)

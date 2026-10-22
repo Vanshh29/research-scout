@@ -42,8 +42,7 @@ def select_entries(conn: sqlite3.Connection, *, top_n: int, since: datetime) -> 
     rows = conn.execute(
         """SELECT i.id, i.title, i.url, i.source, sc.hybrid, sc.embed_score, sc.llm_score,
                   sc.llm_breakdown, sc.llm_reason,
-                  (SELECT tldr FROM summaries s WHERE s.item_id = i.id
-                   ORDER BY s.created_at DESC LIMIT 1) AS tldr
+                  (SELECT tldr FROM latest_summaries s WHERE s.item_id = i.id) AS tldr
            FROM scores sc JOIN items i ON i.id = sc.item_id
            WHERE i.first_seen_at >= ? AND i.id NOT IN (SELECT item_id FROM brief_items)
            ORDER BY (sc.llm_score IS NOT NULL) DESC, sc.hybrid DESC, i.id LIMIT ?""",
