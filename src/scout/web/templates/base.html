@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}Research Scout{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/">Research Scout</a>
+      <nav aria-label="Pages">
+        {% for label, href in nav %}
+        <a href="{{ href }}"{% if href == active %} aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav>
+      {% if last_run %}
+      <a class="run-chip run-{{ last_run.status }}" href="/runs">Last run {{ last_run.status }}, {{ last_run.started_at|ago }}</a>
+      {% else %}
+      <a class="run-chip" href="/runs">No runs yet</a>
+      {% endif %}
+    </div>
+  </header>
+  <main class="{% block width %}narrow{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="foot">
+    {% if demo %}Read-only demo. Data is a sample snapshot.{% else %}Research Scout{% endif %}
+  </footer>
+</body>
+</html>

@@ -7,6 +7,7 @@ from typing import Annotated
 
 import typer
 
+from scout.api.app import create_app
 from scout.brief import build_brief, record_brief, render_telegram, render_text
 from scout.config import (
     Settings,
@@ -199,6 +200,22 @@ def build_graph_cmd() -> None:
         f"items={report.items} nodes_added={report.entities_added} "
         f"edges_added={report.edges_added} skipped={report.skipped}"
     )
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Interface to listen on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
+    demo: Annotated[bool, typer.Option(help="Read-only: refuse every write.")] = False,
+) -> None:
+    """Run the dashboard."""
+    import uvicorn
+
+    settings = Settings()
+    configure_logging(settings.log_level)
+    if demo:
+        settings = settings.model_copy(update={"demo": True})
+    uvicorn.run(create_app(settings), host=host, port=port, log_level="warning")
 
 
 graph_app = typer.Typer(help="Query the knowledge graph.")
