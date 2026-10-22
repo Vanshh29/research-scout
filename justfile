@@ -26,6 +26,14 @@ fmt:
     uv run ruff check --fix .
     uv run ruff format .
 
+# Semantic search: just search "retrieval evaluation"
+search query: fix-pth
+    uv run scout search "{{query}}"
+
+# Items most like one item: just similar arxiv:2401.00001
+similar item_id: fix-pth
+    uv run scout similar "{{item_id}}"
+
 ingest: fix-pth
     uv run scout ingest
 
