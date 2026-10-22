@@ -36,7 +36,9 @@ class Brief(BaseModel):
 
 
 def select_entries(conn: sqlite3.Connection, *, top_n: int, since: datetime) -> list[BriefEntry]:
-    """Best-scored recent items that no earlier brief has shown."""
+    """Best-scored recent items that no earlier brief has shown. LLM-scored items come first:
+    their blended score is not comparable with an embedding-only score, which skips the stricter
+    rubric and would otherwise outrank them."""
     rows = conn.execute(
         """SELECT i.id, i.title, i.url, i.source, sc.hybrid, sc.embed_score, sc.llm_score,
                   sc.llm_breakdown, sc.llm_reason,
@@ -44,7 +46,7 @@ def select_entries(conn: sqlite3.Connection, *, top_n: int, since: datetime) -> 
                    ORDER BY s.created_at DESC LIMIT 1) AS tldr
            FROM scores sc JOIN items i ON i.id = sc.item_id
            WHERE i.first_seen_at >= ? AND i.id NOT IN (SELECT item_id FROM brief_items)
-           ORDER BY sc.hybrid DESC, i.id LIMIT ?""",
+           ORDER BY (sc.llm_score IS NOT NULL) DESC, sc.hybrid DESC, i.id LIMIT ?""",
         (since.isoformat(), top_n),
     ).fetchall()
     return [
