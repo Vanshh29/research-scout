@@ -26,7 +26,7 @@ def next_unlabeled(conn: sqlite3.Connection, n: int) -> list[LabelTarget]:
         """SELECT i.id, i.title, i.source, i.url, i.body,
                   s.tldr, s.key_points, s.entities
            FROM scores sc JOIN items i ON i.id = sc.item_id
-           LEFT JOIN summaries s ON s.item_id = i.id
+           LEFT JOIN latest_summaries s ON s.item_id = i.id
            WHERE i.id NOT IN (SELECT item_id FROM labels)"""
     ).fetchall()
     rows.sort(key=lambda r: hashlib.md5(r["id"].encode()).hexdigest())

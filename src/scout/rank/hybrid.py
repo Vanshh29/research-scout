@@ -42,7 +42,7 @@ def hybrid_score(embed: float, llm: float | None, w_embedding: float, w_llm: flo
 
 def _digest(conn: sqlite3.Connection, row: sqlite3.Row) -> str:
     s = conn.execute(
-        "SELECT tldr, key_points FROM summaries WHERE item_id = ? ORDER BY created_at DESC",
+        "SELECT tldr, key_points FROM latest_summaries WHERE item_id = ?",
         (row["id"],),
     ).fetchone()
     if s is None:

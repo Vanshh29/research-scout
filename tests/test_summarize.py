@@ -111,7 +111,7 @@ def test_poisoned_item_is_contained_and_cannot_change_output(tmp_path: Path) -> 
     stored = conn.execute("SELECT * FROM summaries").fetchone()
     assert set(stored.keys()) == {
         "item_id", "prompt_version", "model", "content_hash",
-        "tldr", "key_points", "entities", "created_at",
+        "tldr", "key_points", "entities", "graph_json", "created_at",
     }  # fmt: skip
 
 
@@ -127,3 +127,93 @@ def test_parse_accepts_latex_backslashes_from_the_model() -> None:
     raw = r'{"tldr": "Uses $\alpha$-divergence and \mathcal{L}", "key_points": ["a \beta b"]}'
     s = parse_summary(raw)
     assert "\\alpha" in s.tldr and "\\mathcal" in s.tldr
+
+
+V2 = {
+    "tldr": "t",
+    "key_points": ["p"],
+    "entities": [
+        {"name": "ReAct", "type": "method", "aliases": ["Reason+Act", "ReAct"]},
+        {"name": "react", "type": "Method"},  # duplicate by case
+        {"name": "HotpotQA", "type": "Dataset"},  # unknown type -> Concept
+        "Toolformer",  # v1-style plain name
+        {"type": "Org"},  # no name -> dropped
+        42,
+    ],
+    "relations": [
+        {"src": "ReAct", "relation": "BUILDS_ON", "dst": "toolformer"},
+        {"src": "ReAct", "relation": "invented_by", "dst": "HotpotQA"},  # unknown -> related_to
+        {"src": "ReAct", "relation": "mentions", "dst": "Ghost"},  # unlisted end -> dropped
+        {"src": "ReAct", "relation": "mentions", "dst": "react"},  # self relation -> dropped
+    ],
+}
+
+
+def test_parse_v2_normalises_entities_and_relations() -> None:
+    s = parse_summary(json.dumps(V2))
+    assert [(e.name, e.type) for e in s.entities] == [
+        ("ReAct", "Method"),
+        ("HotpotQA", "Concept"),
+        ("Toolformer", "Concept"),
+    ]
+    assert s.entities[0].aliases == ["Reason+Act", "ReAct"]
+    assert [(r.src, r.relation, r.dst) for r in s.relations] == [
+        ("ReAct", "builds_on", "Toolformer"),
+        ("ReAct", "related_to", "HotpotQA"),
+    ]
+
+
+def test_parse_v2_caps_sizes() -> None:
+    ents = [{"name": f"E{i}"} for i in range(30)]
+    rels = [{"src": f"E{i}", "relation": "mentions", "dst": f"E{i + 1}"} for i in range(11)] * 3
+    s = parse_summary(json.dumps({"tldr": "t", "entities": ents, "relations": rels}))
+    assert len(s.entities) == 12 and len(s.relations) == 12
+
+
+def test_v1_reply_still_parses() -> None:
+    s = parse_summary(json.dumps({"tldr": "t", "entities": ["GPT-4", "MMLU"]}))
+    assert [e.name for e in s.entities] == ["GPT-4", "MMLU"] and s.relations == []
+
+
+def test_graph_json_is_stored_and_names_stay_a_plain_list(conn: sqlite3.Connection) -> None:
+    upsert_item(conn, make_item())
+    fake = FakeProvider(responder=lambda s, p: json.dumps(V2))
+    summarize_pending(conn, client_for(conn, fake), PROMPTS)
+    row = conn.execute("SELECT entities, graph_json FROM summaries").fetchone()
+    assert json.loads(row["entities"]) == ["ReAct", "HotpotQA", "Toolformer"]
+    graph = json.loads(row["graph_json"])
+    assert len(graph["entities"]) == 3 and len(graph["relations"]) == 2
+
+
+def test_latest_summaries_has_one_row_per_item(conn: sqlite3.Connection) -> None:
+    upsert_item(conn, make_item())
+    for version, stamp in (("summarize_v1", "2026-10-20"), ("summarize_v2", "2026-10-22")):
+        conn.execute(
+            "INSERT INTO summaries (item_id, prompt_version, model, content_hash, tldr,"
+            " key_points, entities, created_at) SELECT id, ?, 'm', content_hash, ?, '[]', '[]', ?"
+            " FROM items",
+            (version, version, stamp),
+        )
+    rows = conn.execute("SELECT prompt_version FROM latest_summaries").fetchall()
+    assert [r["prompt_version"] for r in rows] == ["summarize_v2"]
+
+
+def test_label_targets_are_not_duplicated_by_two_summary_versions(
+    conn: sqlite3.Connection,
+) -> None:
+    from scout.eval.labeler_cli import next_unlabeled
+
+    upsert_item(conn, make_item())
+    conn.execute(
+        "INSERT INTO scores (item_id, content_hash, embed_score, hybrid, weights, scored_at)"
+        " SELECT id, content_hash, 0.5, 0.5, '{}', '2026-10-22' FROM items"
+    )
+    for version, stamp in (("summarize_v1", "2026-10-20"), ("summarize_v2", "2026-10-22")):
+        conn.execute(
+            "INSERT INTO summaries (item_id, prompt_version, model, content_hash, tldr,"
+            " key_points, entities, created_at) SELECT id, ?, 'm', content_hash, ?, '[]', '[]', ?"
+            " FROM items",
+            (version, version, stamp),
+        )
+    targets = next_unlabeled(conn, 10)
+    assert len(targets) == 1
