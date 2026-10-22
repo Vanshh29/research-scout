@@ -17,6 +17,7 @@ from scout.config import (
 )
 from scout.deliver.telegram import DeliveryError, send_message
 from scout.eval.labeler_cli import label_count, run_labeling
+from scout.graph import queries as graph_queries
 from scout.graph.build import build_graph, load_aliases
 from scout.ingest.base import Source
 from scout.ingest.http import make_client
@@ -197,6 +198,76 @@ def build_graph_cmd() -> None:
         f"items={report.items} nodes_added={report.entities_added} "
         f"edges_added={report.edges_added} skipped={report.skipped}"
     )
+
+
+graph_app = typer.Typer(help="Query the knowledge graph.")
+app.add_typer(graph_app, name="graph")
+
+
+def _graph_conn() -> sqlite3.Connection:
+    settings = Settings()
+    configure_logging(settings.log_level)
+    conn = connect(settings.db_path)
+    migrate(conn)
+    return conn
+
+
+@graph_app.command("neighbors")
+def graph_neighbors(
+    name: Annotated[str, typer.Argument(help="Concept name or alias.")],
+    depth: Annotated[int, typer.Option(help="Hops from the concept.")] = 1,
+    limit: Annotated[int, typer.Option(help="Max rows.")] = 25,
+) -> None:
+    """What a concept is connected to: related concepts, papers, repos, posts."""
+    found = graph_queries.neighbors(_graph_conn(), name, depth)
+    if not found:
+        typer.echo(f"nothing found for {name!r}")
+    for n in found[:limit]:
+        via = f"  [{', '.join(n.relations)}]" if n.relations else ""
+        typer.echo(f"{n.distance}  {n.node.type:<8} {n.node.name[:70]}{via}")
+
+
+@graph_app.command("path")
+def graph_path(
+    a: Annotated[str, typer.Argument(help="Start concept.")],
+    b: Annotated[str, typer.Argument(help="End concept.")],
+) -> None:
+    """Shortest chain of links between two concepts."""
+    steps = graph_queries.shortest_path(_graph_conn(), a, b)
+    if steps is None:
+        typer.echo("no path (unknown concept or not connected)")
+        return
+    for node, label in steps:
+        typer.echo(f"{node.type:<8} {node.name[:70]}")
+        if label:
+            typer.echo(f"   --{label}-->")
+
+
+@graph_app.command("trending")
+def graph_trending(
+    days: Annotated[int, typer.Option(help="Window length; compared with the window before.")] = 7,
+    min_count: Annotated[int, typer.Option(help="Min mentions in the recent window.")] = 2,
+    limit: Annotated[int, typer.Option(help="Max rows.")] = 10,
+) -> None:
+    """Concepts mentioned more in the last N days than in the N days before."""
+    rows = graph_queries.trending(_graph_conn(), days=days, min_count=min_count, limit=limit)
+    if not rows:
+        typer.echo("nothing trending yet (needs concepts mentioned by >= min-count items)")
+    for t in rows:
+        tag = "new" if t.is_new else f"was {t.previous}"
+        typer.echo(f"{t.recent:>3}  {t.node.name[:50]:<50} {t.node.type:<8} {tag}")
+
+
+@graph_app.command("clusters")
+def graph_clusters(
+    min_size: Annotated[int, typer.Option(help="Smallest cluster to show.")] = 3,
+) -> None:
+    """Groups of concepts that tend to be mentioned together."""
+    found = graph_queries.clusters(_graph_conn(), min_size=min_size)
+    if not found:
+        typer.echo("no clusters yet (needs concepts that co-occur in items)")
+    for i, c in enumerate(found, 1):
+        typer.echo(f"{i}. ({c.size}) {', '.join(c.members[:8])}")
 
 
 def _make_embedder(settings: Settings) -> Embedder:
