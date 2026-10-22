@@ -93,3 +93,36 @@
 **What's next (Day 4)**
 - sqlite-vec storage (CI must load it on ubuntu), semantic search, "more like this".
 - Entity and relation extraction, graph build and queries.
+
+## Day 4 — 2026-10-22 · Vector search, extraction, knowledge graph
+
+**What changed**
+- `scout search` and `scout similar` over a sqlite-vec index (separate rebuildable file) with a numpy
+  fallback; a test asserts both return the same top-k and fails, not skips, if the extension cannot
+  load, so CI enforces the ADR-006 promise on ubuntu.
+- `summarize_v2`: one call now returns the summary plus typed entities and relations; lenient parser
+  (junk entries dropped, v1 replies still accepted); `max_output_tokens` 700 to 1000.
+- `latest_summaries` view (migration 008) so v1 and v2 rows do not duplicate items.
+- Graph store (migration 009), alias merging with curated seeds, `scout build-graph` (idempotent).
+- `scout graph neighbors | path | trending | clusters`, `build-graph` inside `run-daily` as its own
+  failure-tolerant stage, and a "Trending concepts" line in the brief.
+- ADR-012. 178 tests, all offline. Real run: 60 items re-summarized on Gemini with 0 failures
+  (about 71k tokens for 55), 190 + 163 graph nodes, 542 edges.
+
+**What surprised me**
+- Reading the code before starting found that v2 summaries would have shown every item twice in
+  `scout label`, and that a `vec0` table in a migration would have broken the whole CLI on any
+  machine where the extension cannot load. Both were in the first plan.
+- The model typed the same entity as Method in one item and Concept in another, so identity by
+  (type, name) would have split nodes. Matching now ignores the type.
+- Clusters are nearly one per paper: each paper's concepts form a clique and there are only about
+  120 items with entities.
+- The hidden `.pth` flag came back between nearly every command again.
+
+**Not done / waiting on me**
+- The 30 hand labels (Day 6 needs them). Entity quality is unmeasured until then.
+- The 13:00 launchd agent has not produced a report since Day 2.
+
+**What's next (Day 5)**
+- FastAPI app, Today's brief, What changed today, Run status.
+- Graph explorer (Cytoscape.js), Search / Ask with citations, feedback buttons.
