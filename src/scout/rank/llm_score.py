@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 from scout.config import Profile
 from scout.process.sanitize import wrap_document
+from scout.process.summarize import loads_lenient
 
 PROMPT_NAME = "score_v1"
 DIMENSIONS = ("relevance", "novelty", "evidence_quality", "actionability")
@@ -43,7 +44,7 @@ class Rubric(BaseModel):
 def parse_rubric(text: str) -> Rubric:
     cleaned = _FENCE_RE.sub("", text.strip())
     try:
-        return Rubric.model_validate(json.loads(cleaned))
+        return Rubric.model_validate(loads_lenient(cleaned))
     except (json.JSONDecodeError, ValidationError) as exc:
         raise ValueError(f"invalid score JSON: {exc}") from exc
 
