@@ -1,0 +1,27 @@
+# Curated alias seeds for the knowledge graph (ADR-012). Each canonical name lists other names the
+# same thing goes by. Matching ignores case, punctuation and hyphen-vs-space, so only list
+# genuinely different spellings (acronyms, long forms).
+RAG:
+  - retrieval-augmented generation
+  - retrieval augmented generation
+LLM:
+  - large language model
+  - large language models
+  - LLMs
+LLM-as-a-judge:
+  - LLM judge
+  - LLM-as-judge
+  - model-based evaluation
+AI agents:
+  - LLM agents
+  - agents
+  - agentic systems
+Chain-of-Thought:
+  - CoT
+  - chain of thought prompting
+Retrieval:
+  - information retrieval
+Prompt injection:
+  - prompt injection attacks
+MCP:
+  - Model Context Protocol

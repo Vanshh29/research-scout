@@ -17,6 +17,7 @@ from scout.config import (
 )
 from scout.deliver.telegram import DeliveryError, send_message
 from scout.eval.labeler_cli import label_count, run_labeling
+from scout.graph.build import build_graph, load_aliases
 from scout.ingest.base import Source
 from scout.ingest.http import make_client
 from scout.ingest.registry import build_sources
@@ -181,6 +182,20 @@ def summarize(
         f"summarized={report.done} failed={report.failed} cached={report.cached} "
         f"llm_calls={client.calls} tokens={client.tokens_used}"
         + ("  BUDGET HIT" if report.budget_hit else "")
+    )
+
+
+@app.command("build-graph")
+def build_graph_cmd() -> None:
+    """Build the knowledge graph from summaries (only new or re-summarized items)."""
+    settings = Settings()
+    configure_logging(settings.log_level)
+    conn = connect(settings.db_path)
+    migrate(conn)
+    report = build_graph(conn, load_aliases(settings.config_dir / "aliases.yaml"))
+    typer.echo(
+        f"items={report.items} nodes_added={report.entities_added} "
+        f"edges_added={report.edges_added} skipped={report.skipped}"
     )
 
 
