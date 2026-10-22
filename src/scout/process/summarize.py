@@ -17,6 +17,15 @@ log = get_logger("summarize")
 
 PROMPT_NAME = "summarize_v1"
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+_BAD_ESCAPE_RE = re.compile(r'\\(?!["\\/bfnrtu])')
+
+
+def loads_lenient(text: str) -> object:
+    """json.loads, retrying once with stray backslashes (e.g. LaTeX like \\alpha) escaped."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return json.loads(_BAD_ESCAPE_RE.sub(r"\\\\", text))
 
 
 class Summary(BaseModel):
@@ -64,7 +73,7 @@ def parse_summary(text: str) -> Summary:
     """Parse the model reply into a Summary; raises ValueError if it is not valid JSON."""
     cleaned = _FENCE_RE.sub("", text.strip())
     try:
-        return Summary.model_validate(json.loads(cleaned))
+        return Summary.model_validate(loads_lenient(cleaned))
     except (json.JSONDecodeError, ValidationError) as exc:
         raise ValueError(f"invalid summary JSON: {exc}") from exc
 

@@ -121,3 +121,9 @@ def test_fake_provider_default_produces_valid_summaries(conn: sqlite3.Connection
     assert r.done == 1
     row = conn.execute("SELECT tldr FROM summaries").fetchone()
     assert row["tldr"].startswith("Fake summary")
+
+
+def test_parse_accepts_latex_backslashes_from_the_model() -> None:
+    raw = r'{"tldr": "Uses $\alpha$-divergence and \mathcal{L}", "key_points": ["a \beta b"]}'
+    s = parse_summary(raw)
+    assert "\\alpha" in s.tldr and "\\mathcal" in s.tldr
