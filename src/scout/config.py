@@ -86,8 +86,8 @@ class Profile(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    gemini_model: str = "gemini-2.5-flash"
-    gemini_strong_model: str = "gemini-2.5-pro"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_strong_model: str = "gemini-3.8-flash"
     anthropic_model: str = "claude-haiku-5-5"
     anthropic_strong_model: str = "claude-sonnet-5-5"
     requests_per_minute: float = Field(default=10, ge=0)

@@ -1,6 +1,6 @@
 # Model names, rate limits, and the daily budget. Change here, never in code (ADR-004).
-gemini_model: gemini-2.5-flash        # cheap first-pass model; verify the current name in AI Studio
-gemini_strong_model: gemini-2.5-pro   # only used for the top-K candidates
+gemini_model: gemini-3.5-flash-lite   # cheap model; 2.5-flash is closed to new users
+gemini_strong_model: gemini-3.8-flash # reserved for top-K candidates (not wired yet)
 anthropic_model: claude-haiku-5-5
 anthropic_strong_model: claude-sonnet-5-5
 requests_per_minute: 10               # stay under the free-tier limit
