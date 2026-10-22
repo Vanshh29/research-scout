@@ -93,6 +93,7 @@ def _build_pipeline(settings: Settings, conn: sqlite3.Connection) -> Pipeline:
         embedder=_make_embedder(settings),
         profile=load_profile(settings.config_dir / "profile.yaml"),
         prompts_dir=settings.prompts_dir,
+        aliases_path=settings.config_dir / "aliases.yaml",
         llm=llm,
         llm_note=note,
         telegram_token=settings.telegram_bot_token,

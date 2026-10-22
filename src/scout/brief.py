@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 
+from scout.graph.queries import trending
 from scout.process.sanitize import is_http_url
 
 TELEGRAM_LIMIT = 3800  # Telegram caps messages at 4096 characters; leave headroom
@@ -30,6 +31,7 @@ class Brief(BaseModel):
     date: str
     new_items: int
     entries: list[BriefEntry]
+    trending: list[str] = []
     warnings: list[str] = []
     tokens: int = 0
     cost_usd: float = 0.0
@@ -83,6 +85,7 @@ def build_brief(
         "SELECT COUNT(*) FROM items WHERE first_seen_at >= ?", (since.isoformat(),)
     ).fetchone()[0]
     warns = list(warnings or [])
+    trend = _trending_names(conn, now)
     if entries and all(e.llm_score is None for e in entries):
         warns.append("LLM scoring unavailable: ranked by embedding similarity only.")
     if not entries:
@@ -91,10 +94,19 @@ def build_brief(
         date=now.strftime("%Y-%m-%d"),
         new_items=new_items,
         entries=entries,
+        trending=trend,
         warnings=warns,
         tokens=tokens,
         cost_usd=cost_usd,
     )
+
+
+def _trending_names(conn: sqlite3.Connection, now: datetime, limit: int = 5) -> list[str]:
+    """Top trending concepts for the footer. Cheap (SQL only) and never blocks the brief."""
+    try:
+        return [t.node.name for t in trending(conn, now=now, limit=limit)]
+    except sqlite3.Error:
+        return []
 
 
 def record_brief(conn: sqlite3.Connection, brief: Brief, *, run_id: int | None) -> int:
@@ -127,6 +139,8 @@ def render_text(brief: Brief) -> str:
             lines.append(f"   {e.tldr}")
         if e.reason:
             lines.append(f"   why: {e.reason}")
+    if brief.trending:
+        lines.append("\nTrending concepts: " + ", ".join(brief.trending))
     for w in brief.warnings:
         lines.append(f"\n! {w}")
     return "\n".join(lines)
@@ -138,7 +152,12 @@ def render_telegram(brief: Brief) -> str:
         f"<b>Research Scout {html.escape(brief.date)}</b>\n"
         f"{len(brief.entries)} of {brief.new_items} new items\n"
     )
-    foot = "".join(f"\n⚠ {html.escape(w)}" for w in brief.warnings)
+    trend = (
+        "\n\n<b>Trending</b>: " + ", ".join(html.escape(t) for t in brief.trending)
+        if brief.trending
+        else ""
+    )
+    foot = trend + "".join(f"\n⚠ {html.escape(w)}" for w in brief.warnings)
     blocks: list[str] = []
     used = len(head) + len(foot)
     for e in brief.entries:
