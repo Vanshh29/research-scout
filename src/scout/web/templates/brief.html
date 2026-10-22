@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import source, glyph, bar %}
+{% block title %}Today's brief · Research Scout{% endblock %}
+{% block content %}
+<h1>Today's brief</h1>
+<p class="lede">
+  {% if brief.entries %}{{ brief.entries|length }} of {{ brief.new_items }} new items, ranked for your interests.{% else %}Nothing new to rank yet.{% endif %}
+  {% if brief.created_at %}<span class="muted">Sent {{ brief.created_at|when }}.</span>{% endif %}
+</p>
+
+{% if brief.is_preview %}
+<p class="notice">No brief has been sent yet, so this is a live preview of what the next one will contain.</p>
+{% endif %}
+{% for w in brief.warnings %}
+<p class="notice warn" role="status">{{ w }}</p>
+{% endfor %}
+
+{% if brief.entries %}
+<ol class="items">
+  {% for e in brief.entries %}
+  <li class="item">
+    <span class="rank" aria-label="Rank {{ e.rank }}">{{ e.rank }}</span>
+    <article>
+      <h2 class="item-title">
+        {% set href = e.url|safe_url %}
+        {% if href %}<a href="{{ href }}" rel="noopener noreferrer" target="_blank">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}
+      </h2>
+      <div class="meta">
+        {{ source(e.source) }}
+        <span class="score" title="Hybrid score">{{ '%.2f'|format(e.hybrid) }}</span>
+        {% if e.breakdown %}{{ glyph(e.breakdown) }}{% else %}<span class="muted">embedding only</span>{% endif %}
+      </div>
+      {% if e.tldr %}<p class="tldr">{{ e.tldr }}</p>{% endif %}
+      {% if e.reason %}<p class="reason">{{ e.reason }}</p>{% endif %}
+      <details class="breakdown">
+        <summary>Score details</summary>
+        <dl>
+          {% if e.breakdown %}
+          {% for key, label in rubric %}{% if key in e.breakdown %}
+          <dt>{{ label }}</dt><dd>{{ bar(e.breakdown[key], key) }}<span>{{ '%.2f'|format(e.breakdown[key]) }}</span></dd>
+          {% endif %}{% endfor %}
+          {% endif %}
+          <dt>Embedding</dt><dd><span>{{ '%.2f'|format(e.embed_score) }}</span></dd>
+          <dt>LLM rubric</dt><dd><span>{% if e.llm_score is none %}not scored{% else %}{{ '%.2f'|format(e.llm_score) }}{% endif %}</span></dd>
+        </dl>
+      </details>
+    </article>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="empty">There is nothing to show yet. Run <code>scout run-daily</code> to fetch, summarize and rank items.</p>
+{% endif %}
+
+{% if brief.trending %}
+<section class="trending" aria-labelledby="trending-h">
+  <h2 id="trending-h">Trending concepts</h2>
+  <ul class="tags">{% for t in brief.trending %}<li>{{ t }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endblock %}

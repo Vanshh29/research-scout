@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status %}
+{% block title %}Run status · Research Scout{% endblock %}
+{% block width %}wide{% endblock %}
+{% block content %}
+<h1>Run status</h1>
+{% if not page.last %}
+<p class="empty">No runs recorded yet. Run <code>scout run-daily</code> to create the first one.</p>
+{% else %}
+{% set r = page.last %}
+<p class="lede">Run {{ r.id }} {{ status(r.status) }} started {{ r.started_at|when }}, {{ r.started_at|ago }}.</p>
+<dl class="facts">
+  <div><dt>Fetched</dt><dd>{{ r.fetched }}</dd></div>
+  <div><dt>New</dt><dd>{{ r.new }}</dd></div>
+  <div><dt>Failed sources</dt><dd>{{ r.failed_sources }}</dd></div>
+  <div><dt>Tokens</dt><dd>{{ '{:,}'.format(r.tokens) }}</dd></div>
+  <div><dt>Cost</dt><dd>${{ '%.4f'|format(r.cost_usd) }}</dd></div>
+  <div><dt>Duration</dt><dd>{{ r.latency_ms|duration }}</dd></div>
+</dl>
+
+<h2>Sources</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Source</th><th>Status</th><th class="num">Fetched</th><th class="num">New</th><th class="num">Time</th><th>Error</th></tr></thead>
+    <tbody>
+      {% for s in page.sources %}
+      <tr>
+        <td>{{ s.source }}</td><td>{{ status(s.status) }}</td>
+        <td class="num">{{ s.fetched }}</td><td class="num">{{ s.new }}</td>
+        <td class="num">{{ s.latency_ms|duration }}</td><td>{{ s.error or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No per-source detail recorded for this run.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Recent runs</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Run</th><th>Started</th><th>Status</th><th>Trigger</th><th class="num">New</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Time</th></tr></thead>
+    <tbody>
+      {% for h in page.history %}
+      <tr>
+        <td>{{ h.id }}</td><td>{{ h.started_at|when }}</td><td>{{ status(h.status) }}</td><td>{{ h.trigger }}</td>
+        <td class="num">{{ h.new }}</td><td class="num">{{ '{:,}'.format(h.tokens) }}</td>
+        <td class="num">${{ '%.4f'|format(h.cost_usd) }}</td><td class="num">{{ h.latency_ms|duration }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

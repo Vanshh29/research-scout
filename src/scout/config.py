@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str | None = Field(default=None, alias="TELEGRAM_CHAT_ID")
     n8n_webhook_url: str | None = Field(default=None, alias="SCOUT_N8N_WEBHOOK_URL")
+    demo: bool = Field(default=False, alias="SCOUT_DEMO")  # read-only: every write is refused
+    api_token: str | None = Field(default=None, alias="SCOUT_API_TOKEN")  # gates write endpoints
 
 
 class HttpConfig(BaseModel):

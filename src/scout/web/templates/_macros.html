@@ -1,0 +1,18 @@
+{% macro source(name) %}<span class="source source-{{ name|e }}">{{ name }}</span>{% endmacro %}
+
+{% macro glyph(b) %}
+<svg class="glyph" viewBox="0 0 27 20" width="27" height="20" role="img" aria-label="Score breakdown">
+  {% for key, label in rubric %}{% set v = b.get(key, 0) %}
+  <rect class="g-{{ key }}" x="{{ loop.index0 * 7 }}" y="{{ 20 - v * 20 }}" width="5" height="{{ v * 20 }}" rx="1"><title>{{ label }} {{ '%.2f'|format(v) }}</title></rect>
+  {% endfor %}
+</svg>
+{% endmacro %}
+
+{% macro bar(value, key) %}
+<svg class="bar" viewBox="0 0 100 6" width="100" height="6" role="img" aria-label="{{ '%.2f'|format(value) }}" preserveAspectRatio="none">
+  <rect class="track" width="100" height="6" rx="3"/>
+  <rect class="g-{{ key }}" width="{{ value * 100 }}" height="6" rx="3"/>
+</svg>
+{% endmacro %}
+
+{% macro status(value) %}<span class="pill pill-{{ value|e }}">{{ value }}</span>{% endmacro %}
