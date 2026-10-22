@@ -101,6 +101,13 @@ which is the same environment as the daily cron.
 embeddings — at <50k items × 384 dims that is ~20 MB and a few ms per query, so the fallback is
 acceptable, just less elegant.
 
+**Update (Day 4).** Implemented in `store/vectors.py`. The `vec0` table is *not* a migration:
+`migrate()` runs on every command, so a failing extension would break the whole CLI. The index is a
+derived cache in `data/vectors.db`, rebuilt from the `embeddings` table and never shipped in the
+snapshot. `auto` falls back to numpy with a warning. `tests/test_vectors.py` fails (not skips) if
+sqlite-vec cannot load, so CI on ubuntu-latest enforces the promise above, and a test asserts both
+backends return the same top-k.
+
 ---
 
 ## ADR-007: GitHub source — search by topic, rank by star velocity

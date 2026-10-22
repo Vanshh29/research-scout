@@ -32,6 +32,7 @@ from scout.scheduler.run_daily import Pipeline, run_daily
 from scout.store.db import connect, count_items, migrate
 from scout.store.db import snapshot as write_snapshot
 from scout.store.runs import last_run, source_statuses
+from scout.store.vectors import Backend, Hit, open_index, similar
 
 app = typer.Typer(help="Research Scout: daily research ingestion, ranking, and evaluation.")
 
@@ -201,6 +202,51 @@ def embed(
     rows = recent_items(conn, datetime.now(UTC) - timedelta(days=since_days))
     n = embed_items(conn, _make_embedder(settings), [r["id"] for r in rows])
     typer.echo(f"embedded={n} of {len(rows)} recent items")
+
+
+def _echo_hits(conn: sqlite3.Connection, hits: list[Hit]) -> None:
+    if not hits:
+        typer.echo("no results (run `scout embed` first?)")
+    for h in hits:
+        row = conn.execute("SELECT title, source FROM items WHERE id = ?", (h.item_id,)).fetchone()
+        title, source = (row["title"], row["source"]) if row else ("?", "?")
+        typer.echo(f"{h.score:.3f}  {h.item_id:<28} {source:<8} {title[:80]}")
+
+
+@app.command()
+def search(
+    query: Annotated[str, typer.Argument(help="Free-text query.")],
+    k: Annotated[int, typer.Option("-k", help="How many results.")] = 10,
+    backend: Annotated[Backend, typer.Option(help="auto, vec0 or numpy.")] = "auto",
+) -> None:
+    """Semantic search over embedded items."""
+    settings = Settings()
+    configure_logging(settings.log_level)
+    conn = connect(settings.db_path)
+    migrate(conn)
+    embedder = _make_embedder(settings)
+    index = open_index(
+        conn, embedder.name, settings.db_path.with_name("vectors.db"), backend=backend
+    )
+    _echo_hits(conn, index.search(embedder.embed([query])[0], k))
+
+
+@app.command("similar")
+def similar_cmd(
+    item_id: Annotated[str, typer.Argument(help="Item id, e.g. arxiv:2401.00001.")],
+    k: Annotated[int, typer.Option("-k", help="How many results.")] = 10,
+    backend: Annotated[Backend, typer.Option(help="auto, vec0 or numpy.")] = "auto",
+) -> None:
+    """Items most like the given one."""
+    settings = Settings()
+    configure_logging(settings.log_level)
+    conn = connect(settings.db_path)
+    migrate(conn)
+    embedder = _make_embedder(settings)
+    index = open_index(
+        conn, embedder.name, settings.db_path.with_name("vectors.db"), backend=backend
+    )
+    _echo_hits(conn, similar(conn, index, item_id, embedder.name, k))
 
 
 @app.command()
