@@ -217,3 +217,51 @@ are calibrated by eye on real data and should be revisited once labels exist (Da
 filtering uses embeddings instead of a cheap LLM, which saves quota but can miss items whose title
 looks off-topic. Using one model for summaries and scores keeps config simple; a stronger model for
 top-K is a config change away (`gemini_strong_model` exists but is not wired yet).
+
+---
+
+## ADR-012: Vector index, extraction and knowledge graph (Day 4)
+
+**Context.** Day 4 adds semantic search, entity and relation extraction, and a graph with queries.
+Constraints: no extra daily LLM calls (the cron limit is 20 minutes), nothing may break where
+sqlite-vec cannot load, and every choice must be explainable.
+
+**Decision.**
+- **Vectors.** sqlite-vec `vec0` in a separate, rebuildable file (`data/vectors.db`), never in a
+  migration and never in the snapshot, with a numpy fallback. `embeddings` stays the source of
+  truth. (Details in the ADR-006 update.)
+- **Extraction is folded into `summarize_v2`.** One LLM call per item returns the summary plus typed
+  entities (Concept, Method, Repo, Org, with aliases) and relations (builds_on, implements,
+  mentions, related_to). The parser drops junk entries instead of failing the summary, keeps only
+  relations between listed entities, and still accepts v1 replies. Authors come from item metadata,
+  not the LLM.
+- **`latest_summaries` view.** `summaries` is keyed by prompt version, so a v2 run leaves a v1 row
+  too. The view returns the newest row per item and all readers (brief, ranking, label tool) use it;
+  without it `scout label` would have listed every re-summarized item twice.
+- **Graph in tables, not pickled.** `entities` and `edges` (each edge carries its item) are rebuilt
+  into NetworkX on demand. Rebuilding one item deletes and re-inserts only its edges, so
+  `build-graph` is idempotent and skips unchanged summaries.
+- **Alias merging by normalization.** Case, punctuation and hyphen-versus-space are ignored and a
+  trailing " v2" is dropped, but bare numbers stay ("GPT-4" is not "GPT-4o"). A new name merges into
+  an existing entity only if all its known forms point at one entity; an alias that matches two
+  entities is ignored. `config/aliases.yaml` holds curated seeds.
+- **Matching ignores the entity type.** The first idea was identity = (type, name), but the model
+  typed the same thing as Method in one item and Concept in another, which split one node in two.
+  The first-seen type wins.
+- **Trending** compares the last N days with the N days before, dated by `published_at` (else
+  `first_seen_at`), with a minimum-count floor. With no earlier mentions a concept is labelled
+  "new" instead of getting an invented growth rate.
+
+**Consequences.**
+- Matching by normalization misses true synonyms ("RAG" and "retrieval-augmented generation" are
+  only merged because they are seeded). Upgrade path: embed entity names and merge above a
+  similarity threshold, with the seeds as a safety net.
+- Item nodes and extracted entities are separate: the GitHub item `owner/project` and an extracted
+  Repo `project` are two nodes. Upgrade path: link a Repo entity to the item whose URL or title it
+  matches.
+- With few items every paper's concepts form a clique, so clusters are mostly one item each. They
+  become topical only after a few weeks of data.
+- LLM entity quality is noisy ("AWS Trainium" typed as Method). It is measured against hand labels
+  on Day 6, not tuned by feel.
+- v2 costs about 960 tokens per item (measured on 60 real items), so 60 items a day is about 58k of
+  the 200k token budget.

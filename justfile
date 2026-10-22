@@ -34,6 +34,14 @@ search query: fix-pth
 similar item_id: fix-pth
     uv run scout similar "{{item_id}}"
 
+# Build the knowledge graph from summaries
+build-graph: fix-pth
+    uv run scout build-graph
+
+# Graph queries: just graph trending | clusters | "neighbors RAG" | "path RAG MCP"
+graph +args: fix-pth
+    uv run scout graph {{args}}
+
 ingest: fix-pth
     uv run scout ingest
 

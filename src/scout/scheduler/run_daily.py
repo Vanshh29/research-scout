@@ -12,6 +12,7 @@ from scout.brief import Brief, build_brief, record_brief, render_telegram
 from scout.config import Profile
 from scout.deliver.telegram import DeliveryError, send_message
 from scout.deliver.webhook import post_brief
+from scout.graph.build import build_graph, load_aliases
 from scout.ingest.base import Source
 from scout.ingest.run import SourceReport, ingest_sources
 from scout.llm.client import LLMClient
@@ -36,6 +37,7 @@ class Pipeline:
     telegram_token: str | None = None
     telegram_chat_id: str | None = None
     webhook_url: str | None = None
+    aliases_path: Path | None = None  # curated graph alias seeds (config/aliases.yaml)
     summarize_limit: int | None = 60
     since_days: int = 7
 
@@ -173,6 +175,10 @@ def _post_ingest(
         if rep.budget_hit:
             warnings.append("Daily LLM budget reached: some items are not summarized.")
 
+    def graph() -> None:
+        seeds = load_aliases(pipeline.aliases_path) if pipeline.aliases_path else {}
+        build_graph(conn, seeds)
+
     def rank() -> None:
         rep = rank_items(
             conn,
@@ -190,6 +196,7 @@ def _post_ingest(
             warnings.append(f"{rep.llm_failed} LLM scores failed")
 
     _stage("summarize", warnings, summarize)
+    _stage("graph", warnings, graph)
     _stage("rank", warnings, rank)
     brief = build_brief(
         conn,

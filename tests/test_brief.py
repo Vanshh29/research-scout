@@ -247,3 +247,41 @@ def test_llm_scored_items_outrank_embedding_only_items(conn: sqlite3.Connection)
         )
     conn.commit()
     assert [e.item_id for e in build_brief(conn, top_n=2).entries] == ["arxiv:1", "arxiv:2"]
+
+
+def test_brief_lists_trending_concepts_escaped(conn: sqlite3.Connection) -> None:
+    from datetime import UTC, datetime
+
+    from scout.graph.build import build_graph
+    from tests.test_graph import add_item, ent
+
+    for n in (1, 2):
+        add_item(conn, n, [ent("<b>Agents</b>")], authors=[f"A{n}"])
+        conn.execute(
+            "UPDATE items SET published_at = '2026-10-21T09:00:00+00:00' WHERE id = ?",
+            (f"arxiv:{n}",),
+        )
+    build_graph(conn)
+    brief = build_brief(conn, top_n=2, now=datetime(2026, 10, 22, tzinfo=UTC))
+    assert brief.trending == ["<b>Agents</b>"]
+    assert "Trending concepts: <b>Agents</b>" in render_text(brief)
+    tg = render_telegram(brief)
+    assert "&lt;b&gt;Agents&lt;/b&gt;" in tg and "<b>Agents</b>" not in tg
+
+
+def test_run_daily_builds_the_graph_and_survives_its_failure(
+    conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seed(conn)
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+    summary = run_daily(conn, [], client, pipeline=pipeline(conn))
+    assert conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0] > 0
+    assert not any("graph" in w for w in summary.warnings)
+
+    def boom(*a: object, **k: object) -> None:
+        raise RuntimeError("graph exploded")
+
+    monkeypatch.setattr("scout.scheduler.run_daily.build_graph", boom)
+    again = run_daily(conn, [], client, pipeline=pipeline(conn))
+    assert again.brief is not None
+    assert any("graph stage failed" in w for w in again.warnings)
