@@ -107,7 +107,7 @@
 - `scout graph neighbors | path | trending | clusters`, `build-graph` inside `run-daily` as its own
   failure-tolerant stage, and a "Trending concepts" line in the brief.
 - ADR-012. 178 tests, all offline. Real run: 60 items re-summarized on Gemini with 0 failures
-  (about 71k tokens for 55), 190 + 163 graph nodes, 542 edges.
+  (about 71k tokens for 55); the graph now holds 353 nodes and 440 edges from 63 items.
 
 **What surprised me**
 - Reading the code before starting found that v2 summaries would have shown every item twice in
@@ -115,8 +115,8 @@
   machine where the extension cannot load. Both were in the first plan.
 - The model typed the same entity as Method in one item and Concept in another, so identity by
   (type, name) would have split nodes. Matching now ignores the type.
-- Clusters are nearly one per paper: each paper's concepts form a clique and there are only about
-  120 items with entities.
+- Clusters are nearly one per paper: each paper's concepts form a clique and only 60 items have
+  entities so far.
 - The hidden `.pth` flag came back between nearly every command again.
 
 **Not done / waiting on me**
