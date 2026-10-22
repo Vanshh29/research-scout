@@ -232,3 +232,18 @@ def test_stage_crash_does_not_stop_the_brief(
     summary = run_daily(conn, [], client, pipeline=pipeline(conn))
     assert summary.brief is not None and summary.brief.entries
     assert any("summarize stage failed" in w for w in summary.brief.warnings)
+
+
+def test_llm_scored_items_outrank_embedding_only_items(conn: sqlite3.Connection) -> None:
+    seed(conn)
+    for item_id, embed, llm, hybrid in [
+        ("arxiv:1", 0.5, 0.4, 0.44),  # LLM-scored, lower blended value
+        ("arxiv:2", 0.9, None, 0.9),  # embedding only, higher raw value
+    ]:
+        conn.execute(
+            "INSERT INTO scores (item_id, content_hash, embed_score, llm_score, hybrid, weights,"
+            " scored_at) VALUES (?, 'h', ?, ?, ?, '{}', 'now')",
+            (item_id, embed, llm, hybrid),
+        )
+    conn.commit()
+    assert [e.item_id for e in build_brief(conn, top_n=2).entries] == ["arxiv:1", "arxiv:2"]
