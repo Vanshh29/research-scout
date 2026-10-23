@@ -2,21 +2,33 @@
 templates autoescape, links pass `is_http_url`, and a strict CSP forbids inline script."""
 
 import sqlite3
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
+from urllib.parse import parse_qs
 
-from fastapi import Depends, FastAPI, Query, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 
 from scout.api import views
+from scout.api.auth import (
+    COOKIE,
+    cookie_value,
+    is_unlocked,
+    refuse_if_disabled,
+    require_write,
+    token_matches,
+    writes_enabled,
+)
 from scout.config import Settings
 from scout.graph.queries import subgraph
 from scout.process.sanitize import is_http_url
 from scout.store.db import connect, migrate
+from scout.store.feedback import UnknownItemError, get_votes, set_vote
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 NAV = [("Today", "/"), ("Changed", "/changed"), ("Graph", "/graph"), ("Runs", "/runs")]
@@ -71,6 +83,11 @@ def safe_url(url: str) -> str:
     return url if is_http_url(url) else ""
 
 
+class FeedbackIn(BaseModel):
+    item_id: str = Field(min_length=1, max_length=200)
+    vote: Literal[-1, 1]
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     boot = connect(settings.db_path)
@@ -108,7 +125,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 
     def render(
-        request: Request, conn: sqlite3.Connection, name: str, active: str, **ctx: Any
+        request: Request,
+        conn: sqlite3.Connection,
+        name: str,
+        active: str,
+        item_ids: Sequence[str] = (),
+        **ctx: Any,
     ) -> HTMLResponse:
         latest = views.runs_page(conn).last
         return templates.TemplateResponse(
@@ -118,6 +140,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "nav": NAV,
                 "active": active,
                 "demo": settings.demo,
+                "writes": writes_enabled(settings),
+                "unlocked": is_unlocked(request),
+                "votes_by_item": get_votes(conn, item_ids),
                 "last_run": latest,
                 **ctx,
             },
@@ -125,11 +150,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def today(request: Request, conn: Conn) -> HTMLResponse:
-        return render(request, conn, "brief.html", "/", brief=views.todays_brief(conn))
+        brief = views.todays_brief(conn)
+        ids = [e.item_id for e in brief.entries]
+        return render(request, conn, "brief.html", "/", item_ids=ids, brief=brief)
 
     @app.get("/changed", response_class=HTMLResponse)
     def changed(request: Request, conn: Conn) -> HTMLResponse:
-        return render(request, conn, "changed.html", "/changed", page=views.changed_today(conn))
+        page = views.changed_today(conn)
+        ids = [i.item_id for i in page.new_items]
+        return render(request, conn, "changed.html", "/changed", item_ids=ids, page=page)
 
     Center = Annotated[str | None, Query(max_length=100)]
 
@@ -157,6 +186,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/runs", response_class=HTMLResponse)
     def runs(request: Request, conn: Conn) -> HTMLResponse:
         return render(request, conn, "runs.html", "/runs", page=views.runs_page(conn))
+
+    @app.post("/unlock")
+    async def unlock(request: Request) -> Response:
+        refuse_if_disabled(settings)
+        raw = (await request.body())[:2048].decode("utf-8", errors="replace")
+        token = parse_qs(raw).get("token", [""])[0]
+        if not token_matches(settings, token):
+            raise HTTPException(401, "Invalid token.")
+        response = RedirectResponse("/", status_code=303)
+        response.set_cookie(
+            COOKIE,
+            cookie_value(token),
+            httponly=True,
+            samesite="strict",
+            secure=request.url.scheme == "https",
+            max_age=60 * 60 * 24 * 30,
+        )
+        return response
+
+    @app.post("/api/feedback", dependencies=[Depends(require_write)])
+    def feedback(conn: Conn, body: FeedbackIn) -> JSONResponse:
+        try:
+            vote = set_vote(conn, body.item_id, body.vote)
+        except UnknownItemError:
+            raise HTTPException(404, "Unknown item.") from None
+        return JSONResponse({"item_id": body.item_id, "vote": vote})
 
     @app.get("/healthz")
     def healthz(conn: Conn) -> JSONResponse:

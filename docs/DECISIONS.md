@@ -285,3 +285,30 @@ and item URLs pass `safe_url` on the server.
 - The vendored file is 370 KB in git. Upgrade path: pin it through a lockfile and a fetch step in CI.
 - The layout (`cose`) runs in the browser on up to 80 nodes; much larger slices would need a server-side layout.
 - Tests cover the JSON contract and hostile input, but not the drawing itself. That is checked by hand.
+
+## ADR-014: Write guard and dashboard feedback
+
+**Context.** The dashboard had no write path. Feedback votes are the first one, and the public demo must
+stay read-only. The hosted app serves a snapshot that each deploy replaces (ADR-002), so a vote cast
+there would be lost.
+
+**Decision.**
+- **Default-deny guard.** `require_write` refuses with 403 in demo mode (even with a valid token) and when
+  `SCOUT_API_TOKEN` is unset, so a deploy that forgets the token has no open writes. A test walks
+  `app.routes` and fails if any non-GET route lacks the guard (only `/unlock` is exempt, because it is how
+  a browser gets credentials).
+- **Two ways in.** `Authorization: Bearer <token>` for scripts. For browsers, `POST /unlock` checks the
+  token and sets an `HttpOnly`, `SameSite=Strict` cookie holding an HMAC of the token, never the token.
+  Comparisons use `secrets.compare_digest`.
+- **CSRF.** Cookie-authenticated writes also need an `X-Scout: 1` header, which a cross-site form cannot
+  send; bearer requests cannot be forged cross-site, so they skip it.
+- **Feedback** is one row per item (`feedback`, migration 010); voting the same way again clears it. Vote
+  buttons and the unlock form render only when writes are enabled, so the demo shows no dead controls.
+
+**Consequences.**
+- Votes persist only for a local `scout serve` against the real DB. Upgrade path: publish the feedback
+  rows with the snapshot, or send hosted votes to a queue the daily run drains.
+- No rate limit on `/unlock`. The token is long and random (`secrets.token_urlsafe(32)`), which makes
+  guessing impractical, but a reverse proxy limit would be the next step if this were exposed widely.
+- Votes do not change ranking yet. Planned (Rocchio): liked item vectors join the profile entries, disliked
+  ones subtract a capped penalty; ship only if the eval harness shows it helps.

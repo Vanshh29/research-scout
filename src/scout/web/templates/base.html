@@ -28,6 +28,15 @@
   </main>
   <footer class="foot">
     {% if demo %}Read-only demo. Data is a sample snapshot.{% else %}Research Scout{% endif %}
+    {% if writes and not unlocked %}
+    <form class="unlock" action="/unlock" method="post">
+      <label for="token">Token</label>
+      <input id="token" name="token" type="password" autocomplete="off" required>
+      <button type="submit">Unlock voting</button>
+    </form>
+    {% endif %}
+    <span id="vote-status" class="muted" role="status"></span>
   </footer>
+  {% if unlocked %}<script src="/static/feedback.js"></script>{% endif %}
 </body>
 </html>

@@ -16,3 +16,10 @@
 {% endmacro %}
 
 {% macro status(value) %}<span class="pill pill-{{ value|e }}">{{ value }}</span>{% endmacro %}
+
+{% macro votes(item_id, current, unlocked) %}{% if unlocked %}
+<span class="votes" role="group" aria-label="Rate this item">
+  <button type="button" class="vote" data-item="{{ item_id }}" data-vote="1" aria-pressed="{{ 'true' if current == 1 else 'false' }}" aria-label="Relevant" title="Relevant">&#9650;</button>
+  <button type="button" class="vote" data-item="{{ item_id }}" data-vote="-1" aria-pressed="{{ 'true' if current == -1 else 'false' }}" aria-label="Not relevant" title="Not relevant">&#9660;</button>
+</span>
+{% endif %}{% endmacro %}
