@@ -52,3 +52,8 @@ class HashEmbedder:
                 v[int(hashlib.md5(word.encode()).hexdigest(), 16) % self.dim] += 1.0
             out.append(_normalize(v))
         return out
+
+
+def make_embedder(*, fake: bool) -> Embedder:
+    """The offline hash embedder for the fake provider (tests, CI, demo), else the real model."""
+    return HashEmbedder() if fake else FastEmbedder()

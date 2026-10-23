@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_hits.html" import hit_list %}
+{% block title %}Search · Research Scout{% endblock %}
+{% block content %}
+<h1>Search</h1>
+<form class="graph-search" action="/search" method="get" role="search">
+  <label for="q">Query</label>
+  <input id="q" name="q" type="search" maxlength="300" value="{{ q }}" placeholder="e.g. evaluating retrieval-augmented generation" autofocus>
+  <button type="submit">Search</button>
+</form>
+{% if result %}
+  {% if result.mode == "keyword" %}
+  <p class="notice warn" role="status">The embedding model is not available, so this is a keyword match, not a semantic one.</p>
+  {% endif %}
+  {% if result.hits %}
+  <p class="lede">{{ result.hits|length }} result{{ '' if result.hits|length == 1 else 's' }} for <q>{{ q }}</q>.</p>
+  {{ hit_list(result.hits) }}
+  {% else %}
+  <p class="empty">Nothing matches <q>{{ q }}</q>. Run <code>scout embed</code> if recent items are missing.</p>
+  {% endif %}
+{% else %}
+<p class="lede">Find collected papers, repositories and posts by meaning.</p>
+{% endif %}
+{% endblock %}

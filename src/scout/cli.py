@@ -29,7 +29,7 @@ from scout.llm.client import LLMClient, make_provider
 from scout.log import configure_logging
 from scout.process.summarize import summarize_pending
 from scout.rank.embed_score import embed_items
-from scout.rank.embedder import Embedder, FastEmbedder, HashEmbedder
+from scout.rank.embedder import Embedder, make_embedder
 from scout.rank.hybrid import rank_items, recent_items
 from scout.scheduler.run_daily import Pipeline, run_daily
 from scout.store.db import connect, count_items, migrate
@@ -289,7 +289,7 @@ def graph_clusters(
 
 
 def _make_embedder(settings: Settings) -> Embedder:
-    return HashEmbedder() if settings.llm_provider == "fake" else FastEmbedder()
+    return make_embedder(fake=settings.llm_provider == "fake")
 
 
 @app.command()

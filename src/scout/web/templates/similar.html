@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% from "_hits.html" import hit_list %}
+{% block title %}Similar items · Research Scout{% endblock %}
+{% block content %}
+<h1>More like this</h1>
+<p class="lede">Items closest in meaning to <q>{{ title }}</q>.</p>
+{% if hits %}{{ hit_list(hits) }}{% else %}<p class="empty">No similar items yet. Run <code>scout embed</code> first.</p>{% endif %}
+{% endblock %}
