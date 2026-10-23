@@ -18,7 +18,7 @@ from scout.process.sanitize import is_http_url
 from scout.store.db import connect, migrate
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-NAV = [("Today", "/"), ("Runs", "/runs")]
+NAV = [("Today", "/"), ("Changed", "/changed"), ("Runs", "/runs")]
 RUBRIC = [
     ("relevance", "Relevance"),
     ("novelty", "Novelty"),
@@ -125,6 +125,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def today(request: Request, conn: Conn) -> HTMLResponse:
         return render(request, conn, "brief.html", "/", brief=views.todays_brief(conn))
+
+    @app.get("/changed", response_class=HTMLResponse)
+    def changed(request: Request, conn: Conn) -> HTMLResponse:
+        return render(request, conn, "changed.html", "/changed", page=views.changed_today(conn))
 
     @app.get("/runs", response_class=HTMLResponse)
     def runs(request: Request, conn: Conn) -> HTMLResponse:
