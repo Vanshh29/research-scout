@@ -158,10 +158,13 @@
 **Not done / not verified**
 - Nothing in this batch was looked at in a browser (the Chrome extension was not connected). In
   particular, whether Cytoscape triggers a CSP error under `style-src 'self'` is unknown.
-- Ask has never run against a real Gemini key; tests use the fake provider with canned replies.
-  Citation validation proves the cited document exists, not that it supports the claim.
+- Ask ran once against real Gemini (gemini-3.5-flash-lite) after merge: one question, one cited item,
+  and the claim matched that item's abstract. One answer is not an evaluation. Tests use the fake
+  provider with canned replies. Citation validation proves the cited document exists, not that it
+  supports the claim.
 - Hosted votes are not persisted (the snapshot is replaced on deploy). Votes do not change ranking yet.
-- Still waiting on me: the 30 hand labels, Gemini and Telegram keys.
+- Still waiting on me: the 30 hand labels. The Gemini and Telegram keys are in the local `.env`, but the
+  repository has no GitHub Actions secrets, so the scheduled daily run cannot use them yet.
 
 **What's next**
 - Look at `/graph`, `/changed`, `/search`, `/ask` and the vote buttons in a browser; fix whatever the CSP breaks.
