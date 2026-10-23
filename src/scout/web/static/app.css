@@ -178,3 +178,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 @media (prefers-reduced-motion: no-preference) {
   .top nav a, .item-title a { transition: color 120ms ease, background 120ms ease; }
 }
+
+.plain { list-style: none; padding: 0; margin: 0 0 16px; }
+.plain li { margin: 0 0 12px; }
+.changed-items .tldr { margin: 4px 0 0; }

@@ -7,10 +7,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from scout.brief import Brief, BriefEntry, build_brief
+from scout.graph.queries import trending
 from scout.store.runs import last_run, source_statuses
 
 PREVIEW_TOP_N = 8
 HISTORY_LIMIT = 14
+CHANGED_ITEMS = 10
+CHANGED_CONCEPTS = 12
+CHANGED_TRENDS = 5
 
 
 @dataclass(frozen=True)
@@ -123,3 +127,88 @@ def runs_page(conn: sqlite3.Connection) -> RunsPage:
         for s in source_statuses(conn, latest["id"])
     ]
     return RunsPage(last=_run(latest), sources=sources, history=[_run(r) for r in history])
+
+
+@dataclass(frozen=True)
+class ChangedItem:
+    item_id: str
+    title: str
+    url: str
+    source: str
+    tldr: str | None
+    hybrid: float | None
+
+
+@dataclass(frozen=True)
+class SourceChange:
+    source: str
+    before: str | None  # None: the source was not in the previous run
+    after: str
+
+
+@dataclass(frozen=True)
+class TrendRow:
+    name: str
+    recent: int
+    is_new: bool
+
+
+@dataclass(frozen=True)
+class ChangedPage:
+    since: str | None  # start of the latest run; None when no run exists
+    total_new: int
+    new_items: list[ChangedItem]
+    new_concepts: list[str]
+    trends: list[TrendRow]
+    source_changes: list[SourceChange]
+
+
+def _source_changes(conn: sqlite3.Connection) -> list[SourceChange]:
+    """Sources whose status differs between the two newest runs."""
+    ids = [r["id"] for r in conn.execute("SELECT id FROM runs ORDER BY id DESC LIMIT 2")]
+    if len(ids) < 2:
+        return []
+    before = {s["source"]: s["status"] for s in source_statuses(conn, ids[1])}
+    return [
+        SourceChange(s["source"], before.get(s["source"]), s["status"])
+        for s in source_statuses(conn, ids[0])
+        if before.get(s["source"]) != s["status"]
+    ]
+
+
+def changed_today(conn: sqlite3.Connection, *, now: datetime | None = None) -> ChangedPage:
+    """What the latest run added: items first seen since it started (best scored first), concepts
+    first seen since then, concepts gaining mentions, and sources whose health changed."""
+    latest = last_run(conn)
+    if latest is None:
+        return ChangedPage(None, 0, [], [], [], [])
+    since = latest["started_at"]
+    total = conn.execute(
+        "SELECT COUNT(*) FROM items WHERE first_seen_at >= ?", (since,)
+    ).fetchone()[0]
+    rows = conn.execute(
+        """SELECT i.id, i.title, i.url, i.source, sc.hybrid,
+                  (SELECT tldr FROM latest_summaries s WHERE s.item_id = i.id) AS tldr
+           FROM items i LEFT JOIN scores sc ON sc.item_id = i.id
+           WHERE i.first_seen_at >= ?
+           ORDER BY (sc.hybrid IS NULL), sc.hybrid DESC, i.id LIMIT ?""",
+        (since, CHANGED_ITEMS),
+    ).fetchall()
+    concepts = conn.execute(
+        """SELECT name FROM entities
+           WHERE item_id IS NULL AND type != 'Person' AND first_seen_at >= ?
+           ORDER BY name LIMIT ?""",
+        (since, CHANGED_CONCEPTS),
+    ).fetchall()
+    trends = trending(conn, limit=CHANGED_TRENDS, now=now)
+    return ChangedPage(
+        since=since,
+        total_new=total,
+        new_items=[
+            ChangedItem(r["id"], r["title"], r["url"], r["source"], r["tldr"], r["hybrid"])
+            for r in rows
+        ],
+        new_concepts=[c["name"] for c in concepts],
+        trends=[TrendRow(t.node.name, t.recent, t.is_new) for t in trends],
+        source_changes=_source_changes(conn),
+    )

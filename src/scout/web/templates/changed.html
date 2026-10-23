@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_macros.html" import source, status %}
+{% block title %}What changed today · Research Scout{% endblock %}
+{% block content %}
+<h1>What changed today</h1>
+{% if not page.since %}
+<p class="empty">No runs recorded yet. Run <code>scout run-daily</code> to see what each run adds.</p>
+{% else %}
+<p class="lede">
+  Since the latest run started {{ page.since|ago }}, {{ page.total_new }} new item{{ '' if page.total_new == 1 else 's' }}.
+</p>
+
+{% if not page.new_items and not page.new_concepts and not page.source_changes %}
+<p class="empty">Quiet day. The latest run found nothing new to report.</p>
+{% endif %}
+
+{% if page.source_changes %}
+<section aria-labelledby="health-h">
+  <h2 id="health-h">Source health</h2>
+  <ul class="plain">
+    {% for c in page.source_changes %}
+    <li>{{ c.source }}: {% if c.before %}{{ status(c.before) }} to {% endif %}{{ status(c.after) }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if page.new_items %}
+<section aria-labelledby="items-h">
+  <h2 id="items-h">New items</h2>
+  <ul class="plain changed-items">
+    {% for e in page.new_items %}
+    <li>
+      {% set href = e.url|safe_url %}
+      <strong>{% if href %}<a href="{{ href }}" rel="noopener noreferrer" target="_blank">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
+      <div class="meta">{{ source(e.source) }}{% if e.hybrid is not none %}<span class="score" title="Hybrid score">{{ '%.2f'|format(e.hybrid) }}</span>{% else %}<span class="muted">not ranked yet</span>{% endif %}</div>
+      {% if e.tldr %}<p class="tldr">{{ e.tldr }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if page.total_new > page.new_items|length %}<p class="muted">Showing {{ page.new_items|length }} of {{ page.total_new }}.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if page.new_concepts %}
+<section aria-labelledby="concepts-h">
+  <h2 id="concepts-h">New concepts</h2>
+  <ul class="tags">{% for c in page.new_concepts %}<li>{{ c }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% if page.trends %}
+<section aria-labelledby="trends-h">
+  <h2 id="trends-h">Trending up</h2>
+  <ul class="tags">{% for t in page.trends %}<li>{{ t.name }} <span class="muted">{{ t.recent }}{% if t.is_new %}, new{% endif %}</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -170,3 +170,97 @@ def test_views_work_on_a_plain_connection(db_path: Path) -> None:
     assert views.runs_page(conn).last is None
     assert views.todays_brief(conn).is_preview
     conn.close()
+
+
+def seed_two_runs(db_path: Path, *, now: datetime, github_now: str = "failed") -> None:
+    """An older run where both sources were ok, then a newer run where github is `github_now`."""
+    conn = connect(db_path)
+    for when_run, github in ((now - timedelta(days=1), "ok"), (now, github_now)):
+        run_id = start_run(conn, trigger="cron", now=when_run)
+        reports = [
+            SourceReport(source="arxiv", status="ok", fetched=3, new=1, latency_ms=100),
+            SourceReport(source="github", status=github, fetched=0, new=0, latency_ms=100),
+        ]
+        finish_run(conn, run_id, reports, latency_ms=500, now=when_run)
+    conn.close()
+
+
+def seed_changed(db_path: Path, *, now: datetime) -> None:
+    """One item seen before the latest run and a ranked one seen after it started."""
+    conn = connect(db_path)
+    ranked(conn)
+    old = (now - timedelta(days=2)).isoformat()
+    conn.execute("UPDATE items SET first_seen_at = ?", (old,))
+    conn.execute("UPDATE items SET first_seen_at = ? WHERE id = 'arxiv:1'", (now.isoformat(),))
+    conn.execute(
+        "INSERT INTO entities (type, name, norm_name, first_seen_at) VALUES (?, ?, ?, ?)",
+        ("Concept", "Tool use", "tool use", now.isoformat()),
+    )
+    conn.execute(
+        "INSERT INTO entities (type, name, norm_name, first_seen_at) VALUES (?, ?, ?, ?)",
+        ("Concept", "Old idea", "old idea", old),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_changed_view_lists_only_what_is_new_since_the_last_run(db_path: Path) -> None:
+    now = datetime(2026, 10, 22, 12, tzinfo=UTC)
+    seed_two_runs(db_path, now=now)
+    seed_changed(db_path, now=now + timedelta(minutes=5))
+    conn = connect(db_path)
+    page = views.changed_today(conn, now=now + timedelta(hours=1))
+    conn.close()
+    assert [i.item_id for i in page.new_items] == ["arxiv:1"] and page.total_new == 1
+    assert page.new_concepts == ["Tool use"]
+    assert [(c.source, c.before, c.after) for c in page.source_changes] == [
+        ("github", "ok", "failed")
+    ]
+
+
+def test_changed_view_without_runs_is_empty(db_path: Path) -> None:
+    conn = connect(db_path)
+    page = views.changed_today(conn)
+    conn.close()
+    assert page.since is None and not page.new_items and not page.source_changes
+
+
+def test_changed_page_quiet_day_and_no_source_change(db_path: Path) -> None:
+    now = datetime(2026, 10, 22, 12, tzinfo=UTC)
+    seed_two_runs(db_path, now=now, github_now="ok")
+    page = client_for(db_path).get("/changed")
+    assert page.status_code == 200
+    assert "Quiet day" in page.text and "Source health" not in page.text
+
+
+def test_changed_page_renders_changes_and_nav(db_path: Path) -> None:
+    now = datetime.now(UTC)
+    seed_two_runs(db_path, now=now)
+    seed_changed(db_path, now=now + timedelta(minutes=1))
+    resp = client_for(db_path).get("/changed")
+    assert resp.status_code == 200
+    assert "LLM agents with tool use" in resp.text and "Tool use" in resp.text
+    assert "Old idea" not in resp.text and "github" in resp.text
+    assert 'href="/changed"' in resp.text
+
+
+def test_changed_page_escapes_hostile_titles(db_path: Path) -> None:
+    now = datetime.now(UTC)
+    seed_two_runs(db_path, now=now)
+    conn = connect(db_path)
+    upsert_item(
+        conn,
+        make_item(
+            id="arxiv:evil",
+            url="javascript:alert(1)",
+            title="<script>alert('x')</script> agents",
+            body="LLM agents with tool use",
+        ),
+    )
+    ranked(conn)
+    conn.execute("UPDATE items SET first_seen_at = ?", ((now + timedelta(minutes=1)).isoformat(),))
+    conn.commit()
+    conn.close()
+    page = client_for(db_path).get("/changed").text
+    assert "<script>alert" not in page and "&lt;script&gt;" in page
+    assert 'href="javascript:' not in page
