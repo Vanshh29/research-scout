@@ -5,7 +5,14 @@ from pathlib import Path
 import pytest
 
 from scout.graph.build import build_graph
-from scout.graph.queries import clusters, find_entity, neighbors, shortest_path, trending
+from scout.graph.queries import (
+    clusters,
+    find_entity,
+    neighbors,
+    shortest_path,
+    subgraph,
+    trending,
+)
 from scout.store.db import connect, migrate
 from tests.test_graph import add_item, ent
 
@@ -117,3 +124,51 @@ def test_clusters_with_no_cooccurrence(conn: sqlite3.Connection) -> None:
     add_item(conn, 1, [ent("Only")])
     build_graph(conn)
     assert clusters(conn) == []
+
+
+def test_subgraph_around_a_center(conn: sqlite3.Connection) -> None:
+    add_item(
+        conn,
+        1,
+        [ent("A"), ent("B"), ent("C")],
+        [
+            {"src": "A", "relation": "builds_on", "dst": "B"},
+            {"src": "B", "relation": "implements", "dst": "C"},
+        ],
+        authors=["One"],
+    )
+    build_graph(conn)
+    sub = subgraph(conn, "A", depth=1)
+    names = {n.name for n in sub.nodes}
+    assert sub.center == "A" and {"A", "B", "Item 1"} <= names and "C" not in names
+    assert not sub.truncated
+    ids = {n.id for n in sub.nodes}
+    assert sub.edges and all(e.src in ids and e.dst in ids for e in sub.edges)
+    by_id = {n.id: n.name for n in sub.nodes}
+    labels = {frozenset((by_id[e.src], by_id[e.dst])): e.label for e in sub.edges}
+    assert labels[frozenset(("A", "B"))] == "builds_on"
+    assert [i.title for i in sub.items] == ["Item 1"]
+
+
+def test_subgraph_caps_nodes_and_flags_truncation(conn: sqlite3.Connection) -> None:
+    names = [f"N{n}" for n in range(8)]
+    add_item(conn, 1, [ent("Hub"), *[ent(n) for n in names]], [], authors=[])
+    build_graph(conn)
+    sub = subgraph(conn, "Hub", depth=2, limit=4)
+    assert len(sub.nodes) == 4 and sub.truncated
+    assert "Hub" in {n.name for n in sub.nodes}
+
+
+def test_subgraph_unknown_center_is_empty(conn: sqlite3.Connection) -> None:
+    add_item(conn, 1, [ent("A")], [], authors=[])
+    build_graph(conn)
+    sub = subgraph(conn, "nonexistent")
+    assert sub.nodes == [] and sub.edges == [] and sub.center is None
+
+
+def test_subgraph_without_center_overviews_connected_concepts(conn: sqlite3.Connection) -> None:
+    dated(conn, 1, "2026-10-20", [ent("A"), ent("B")])
+    dated(conn, 2, "2026-10-21", [ent("A"), ent("B")])
+    build_graph(conn)
+    sub = subgraph(conn, None, now=NOW)
+    assert sub.center is None and {"A", "B"} <= {n.name for n in sub.nodes}

@@ -52,8 +52,8 @@ class Cluster:
 def load_graph(conn: sqlite3.Connection) -> nx.Graph:
     """Undirected view of every node and edge; edge attribute `relations` is a set of labels."""
     g: nx.Graph = nx.Graph()
-    for r in conn.execute("SELECT id, name, type FROM entities"):
-        g.add_node(r["id"], name=r["name"], type=r["type"])
+    for r in conn.execute("SELECT id, name, type, item_id FROM entities"):
+        g.add_node(r["id"], name=r["name"], type=r["type"], item_id=r["item_id"])
     for r in conn.execute("SELECT src, dst, relation FROM edges"):
         if g.has_edge(r["src"], r["dst"]):
             g[r["src"]][r["dst"]]["relations"].add(r["relation"])
@@ -189,3 +189,88 @@ def clusters(conn: sqlite3.Connection, *, min_size: int = 3) -> list[Cluster]:
         ranked = sorted(members, key=lambda n: (-g.degree(n, weight="weight"), names[n]))
         out.append(Cluster(len(members), tuple(names[n] for n in ranked)))
     return sorted(out, key=lambda c: (-c.size, c.members))
+
+
+@dataclass(frozen=True)
+class GraphNode:
+    id: int
+    name: str
+    type: str
+    degree: int
+
+
+@dataclass(frozen=True)
+class GraphEdge:
+    src: int
+    dst: int
+    label: str
+
+
+@dataclass(frozen=True)
+class GraphItem:
+    id: str
+    title: str
+    url: str
+
+
+@dataclass(frozen=True)
+class Subgraph:
+    center: str | None  # the matched entity's name; None for the overview or an unknown name
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    items: list[GraphItem]  # items that mention the center, newest first
+    truncated: bool
+
+
+def _mentioning_items(conn: sqlite3.Connection, entity_id: int, limit: int) -> list[GraphItem]:
+    rows = conn.execute(
+        """SELECT i.id, i.title, i.url
+           FROM edges ed JOIN entities s ON s.id = ed.src JOIN items i ON i.id = s.item_id
+           WHERE ed.dst = ? AND ed.relation = 'mentions'
+           ORDER BY COALESCE(i.published_at, i.first_seen_at) DESC, i.id LIMIT ?""",
+        (entity_id, limit),
+    ).fetchall()
+    return [GraphItem(r["id"], r["title"], r["url"]) for r in rows]
+
+
+def subgraph(
+    conn: sqlite3.Connection,
+    center: str | None,
+    *,
+    depth: int = 1,
+    limit: int = 80,
+    item_limit: int = 10,
+    now: datetime | None = None,
+) -> Subgraph:
+    """A bounded slice of the graph for drawing.
+
+    With a center: that entity plus its neighbors out to `depth`, nearest and most connected first.
+    Without one: trending concepts (else the most connected concepts) and their direct neighbors.
+    `truncated` is set when `limit` cut nodes off."""
+    g = load_graph(conn)
+    if center is not None:
+        start = find_entity(conn, center)
+        if start is None:
+            return Subgraph(None, [], [], [], False)
+        dist = nx.single_source_shortest_path_length(g, start.id, cutoff=depth)
+        order = sorted(dist, key=lambda n: (dist[n], -g.degree(n), g.nodes[n]["name"]))
+        name: str | None = start.name
+        items = _mentioning_items(conn, start.id, item_limit)
+    else:
+        seeds = [t.node.id for t in trending(conn, now=now, limit=5)]
+        if not seeds:
+            concepts = [
+                n for n, d in g.nodes(data=True) if d["item_id"] is None and d["type"] != "Person"
+            ]
+            seeds = sorted(concepts, key=lambda n: (-g.degree(n), g.nodes[n]["name"]))[:5]
+        reach = {n for s in seeds for n in [s, *g.neighbors(s)]}
+        order = sorted(reach, key=lambda n: (n not in seeds, -g.degree(n), g.nodes[n]["name"]))
+        name, items = None, []
+    kept = order[:limit]
+    keep = set(kept)
+    edges = [
+        GraphEdge(a, b, "/".join(sorted(d["relations"])))
+        for a, b, d in g.subgraph(keep).edges(data=True)
+    ]
+    nodes = [GraphNode(n, g.nodes[n]["name"], g.nodes[n]["type"], g.degree(n)) for n in kept]
+    return Subgraph(name, nodes, edges, items, truncated=len(order) > limit)
