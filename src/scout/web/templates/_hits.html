@@ -1,0 +1,19 @@
+{% from "_macros.html" import source %}
+{% macro hit_list(hits) %}
+<ol class="items hits">
+  {% for h in hits %}
+  <li class="hit">
+    <h2 class="item-title">
+      {% set href = h.url|safe_url %}
+      {% if href %}<a href="{{ href }}" rel="noopener noreferrer" target="_blank">{{ h.title }}</a>{% else %}{{ h.title }}{% endif %}
+    </h2>
+    <div class="meta">
+      {{ source(h.source) }}
+      {% if h.score is not none %}<span class="score" title="Cosine similarity">{{ '%.2f'|format(h.score) }}</span>{% endif %}
+      <a href="/similar/{{ h.item_id|urlencode }}">More like this</a>
+    </div>
+    {% if h.tldr %}<p class="tldr">{{ h.tldr }}</p>{% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% endmacro %}

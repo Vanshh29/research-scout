@@ -27,11 +27,18 @@ from scout.api.auth import (
 from scout.config import Settings
 from scout.graph.queries import subgraph
 from scout.process.sanitize import is_http_url
+from scout.search import Searcher
 from scout.store.db import connect, migrate
 from scout.store.feedback import UnknownItemError, get_votes, set_vote
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-NAV = [("Today", "/"), ("Changed", "/changed"), ("Graph", "/graph"), ("Runs", "/runs")]
+NAV = [
+    ("Today", "/"),
+    ("Changed", "/changed"),
+    ("Search", "/search"),
+    ("Graph", "/graph"),
+    ("Runs", "/runs"),
+]
 RUBRIC = [
     ("relevance", "Relevance"),
     ("novelty", "Novelty"),
@@ -88,7 +95,7 @@ class FeedbackIn(BaseModel):
     vote: Literal[-1, 1]
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, searcher: Searcher | None = None) -> FastAPI:
     settings = settings or Settings()
     boot = connect(settings.db_path)
     try:
@@ -98,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Research Scout", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
+    searcher = searcher or Searcher(settings)
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 
     templates = Jinja2Templates(directory=WEB_DIR / "templates")
@@ -159,6 +167,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         page = views.changed_today(conn)
         ids = [i.item_id for i in page.new_items]
         return render(request, conn, "changed.html", "/changed", item_ids=ids, page=page)
+
+    @app.get("/search", response_class=HTMLResponse)
+    def search(
+        request: Request,
+        conn: Conn,
+        q: Annotated[str, Query(max_length=300)] = "",
+        k: Annotated[int, Query(ge=1, le=25)] = 10,
+    ) -> HTMLResponse:
+        query = q.strip()
+        result = searcher.search(conn, query, k) if query else None
+        return render(request, conn, "search.html", "/search", q=query, result=result)
+
+    @app.get("/similar/{item_id:path}", response_class=HTMLResponse)
+    def similar_items(request: Request, conn: Conn, item_id: str) -> HTMLResponse:
+        row = conn.execute("SELECT title FROM items WHERE id = ?", (item_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Unknown item.")
+        hits = searcher.similar(conn, item_id, 10)
+        return render(request, conn, "similar.html", "/search", title=row["title"], hits=hits)
 
     Center = Annotated[str | None, Query(max_length=100)]
 
