@@ -9,10 +9,12 @@ from scout.api import views
 from scout.api.app import ago, create_app, duration, safe_url, when
 from scout.brief import build_brief, record_brief
 from scout.config import Settings
+from scout.graph.build import build_graph
 from scout.ingest.run import SourceReport
 from scout.store.db import connect, migrate, upsert_item
 from scout.store.runs import finish_run, start_run
 from tests.test_brief import ranked
+from tests.test_graph import add_item, ent
 from tests.test_store import make_item
 
 
@@ -264,3 +266,64 @@ def test_changed_page_escapes_hostile_titles(db_path: Path) -> None:
     page = client_for(db_path).get("/changed").text
     assert "<script>alert" not in page and "&lt;script&gt;" in page
     assert 'href="javascript:' not in page
+
+
+def seed_graph(db_path: Path, *, name: str = "Tool use") -> None:
+    conn = connect(db_path)
+    add_item(
+        conn,
+        1,
+        [ent(name), ent("Planning")],
+        [{"src": name, "relation": "builds_on", "dst": "Planning"}],
+        authors=["One"],
+    )
+    build_graph(conn)
+    conn.close()
+
+
+def test_graph_page_serves_vendored_script_without_inline_code(db_path: Path) -> None:
+    resp = client_for(db_path).get("/graph")
+    assert resp.status_code == 200 and 'href="/graph"' in resp.text
+    assert '<script src="/static/vendor/cytoscape-3.30.2.min.js"' in resp.text
+    assert '<script src="/static/graph.js"' in resp.text
+    assert "<script>" not in resp.text and ' style="' not in resp.text
+    assert client_for(db_path).get("/static/vendor/cytoscape-3.30.2.min.js").status_code == 200
+
+
+def test_graph_api_returns_nodes_edges_and_items(db_path: Path) -> None:
+    seed_graph(db_path)
+    body = client_for(db_path).get("/api/graph", params={"center": "tool use"}).json()
+    assert body["center"] == "Tool use" and body["truncated"] is False
+    names = {n["name"] for n in body["nodes"]}
+    assert {"Tool use", "Planning"} <= names
+    ids = {n["id"] for n in body["nodes"]}
+    assert body["edges"] and all(e["src"] in ids and e["dst"] in ids for e in body["edges"])
+    assert [i["title"] for i in body["items"]] == ["Item 1"]
+
+
+def test_graph_api_overview_unknown_center_and_empty_db(db_path: Path) -> None:
+    empty = client_for(db_path).get("/api/graph").json()
+    assert empty == {"center": None, "nodes": [], "edges": [], "items": [], "truncated": False}
+    seed_graph(db_path)
+    c = client_for(db_path)
+    assert c.get("/api/graph").json()["nodes"]
+    unknown = c.get("/api/graph", params={"center": "zzz"})
+    assert unknown.status_code == 200 and unknown.json()["nodes"] == []
+
+
+def test_graph_api_validates_parameters(db_path: Path) -> None:
+    c = client_for(db_path)
+    assert c.get("/api/graph", params={"depth": 9}).status_code == 422
+    assert c.get("/api/graph", params={"center": "x" * 500}).status_code == 422
+
+
+def test_graph_api_hostile_names_and_urls_stay_data(db_path: Path) -> None:
+    seed_graph(db_path, name="<img src=x onerror=alert(1)>")
+    conn = connect(db_path)
+    conn.execute("UPDATE items SET url = 'javascript:alert(1)'")
+    conn.commit()
+    conn.close()
+    resp = client_for(db_path).get("/api/graph", params={"center": "onerror"})
+    assert resp.headers["content-type"].startswith("application/json")
+    assert resp.json()["items"][0]["url"] == ""
+    assert "javascript:" not in resp.text

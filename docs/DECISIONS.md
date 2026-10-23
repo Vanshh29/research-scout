@@ -265,3 +265,23 @@ sqlite-vec cannot load, and every choice must be explainable.
   on Day 6, not tuned by feel.
 - v2 costs about 960 tokens per item (measured on 60 real items), so 60 items a day is about 58k of
   the 200k token budget.
+
+## ADR-013: Graph explorer with vendored Cytoscape.js
+
+**Context.** The dashboard needs an interactive view of the knowledge graph. The CSP is
+`script-src 'self'`, so nothing may load from a CDN or run inline, and the project has no JS build step.
+
+**Options.** Cytoscape.js, D3 force layout, or a server-rendered static SVG.
+
+**Decision.** Cytoscape.js 3.30.2 (MIT), copied into `web/static/vendor/` with its license. D3 would
+mean writing layout, zoom and hit-testing by hand; static SVG cannot recentre on click. The page is a plain
+GET form plus about 80 lines of `graph.js`; HTMX was dropped from the original plan because a form and one
+`fetch` need no extra dependency. `/api/graph` returns a bounded slice (`subgraph()`, 80 nodes by default,
+`truncated` flag, `depth` 1-2, `center` max 100 chars), so the page stays fast as the graph grows. Entity
+names and titles are untrusted: they reach the DOM only through `textContent` or Cytoscape data fields,
+and item URLs pass `safe_url` on the server.
+
+**Consequences.**
+- The vendored file is 370 KB in git. Upgrade path: pin it through a lockfile and a fetch step in CI.
+- The layout (`cose`) runs in the browser on up to 80 nodes; much larger slices would need a server-side layout.
+- Tests cover the JSON contract and hostile input, but not the drawing itself. That is checked by hand.
