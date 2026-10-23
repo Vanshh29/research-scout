@@ -57,6 +57,11 @@ class LLMClient:
         ).fetchone()
         return int(row["t"]), float(row["c"])
 
+    def is_cached(self, prompt_version: str, content_hash: str) -> bool:
+        key = cache_key(prompt_version, self._provider.model, content_hash)
+        row = self._conn.execute("SELECT 1 FROM llm_cache WHERE cache_key = ?", (key,)).fetchone()
+        return row is not None
+
     def _cost(self, input_tokens: int, output_tokens: int) -> float:
         c = self._config
         return (input_tokens * c.price_in_per_mtok + output_tokens * c.price_out_per_mtok) / 1e6

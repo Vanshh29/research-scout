@@ -46,9 +46,20 @@ def _score_json(prompt: str) -> str:
     )
 
 
+def _ask_json(prompt: str) -> str:
+    """A grounded-looking answer that cites the first document in the request."""
+    m = re.search(r'<document id="(\d+)"', prompt)
+    n = int(m.group(1)) if m else None
+    if n is None:
+        return json.dumps({"answer": "The documents do not say.", "citations": []})
+    return json.dumps({"answer": f"Offline answer based on document [{n}].", "citations": [n]})
+
+
 def _default_responder(system: str, prompt: str) -> str:
     if "[task:summarize]" in system:
         return _summary_json(prompt)
+    if "[task:ask]" in system:
+        return _ask_json(prompt)
     if "[task:score]" in system:
         return _score_json(prompt)
     return "fake:" + hashlib.sha256(f"{system}\n{prompt}".encode()).hexdigest()[:12]

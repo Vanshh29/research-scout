@@ -312,3 +312,37 @@ there would be lost.
   guessing impractical, but a reverse proxy limit would be the next step if this were exposed widely.
 - Votes do not change ranking yet. Planned (Rocchio): liked item vectors join the profile entries, disliked
   ones subtract a capped penalty; ship only if the eval harness shows it helps.
+
+## ADR-015: Grounded Ask with validated citations
+
+**Context.** The dashboard should answer questions about the collected items without the model
+inventing sources. Ask costs money per call, the ingested text is untrusted, and the demo is public.
+
+**Decision.**
+- **Context is the stored summary, not the body.** Retrieval takes the top 6 items (`Searcher`), each
+  shown as title, TL;DR and key points inside a `wrap_document` block with a numeric id (items without a
+  summary fall back to 400 characters of body). This bounds tokens per question and reuses the
+  delimiting used everywhere else. The question is wrapped in `<question>` with angle brackets
+  escaped, and the system prompt (`ask_v1.md`) says both are data, never instructions.
+- **Citations are checked in code, not trusted.** The reply is JSON `{answer, citations}`. Numbers outside
+  the retrieved set are dropped from both the list and the inline `[n]` markers. An answer left with no
+  valid citation is replaced by a fixed fallback and the page shows what was searched, so an uncited claim
+  is never displayed.
+- **Cache and cost.** `LLMClient.complete` caches by `(ask_v1, model, hash(question + document text))`,
+  so a repeat costs nothing and an edited item invalidates the answer. A malformed reply is paid for once,
+  never cached, and still counts as a call.
+- **Separate cap.** `ask_usage` counts uncached Ask calls per UTC day (`ask_daily_calls`, default 30) so
+  interactive questions cannot drain the token budget the daily pipeline needs. Cached answers are still
+  served at the cap. The shared token budget still applies underneath.
+- **Guarded like any write.** `POST /api/ask` uses `require_write`, so demo mode and an unset token
+  refuse it (ADR-014). The demo keeps Search and shows a note on `/ask`.
+- **Failure modes are plain statuses:** 429 over a cap or budget, 502 for a provider failure or unusable
+  reply, 503 when no API key is configured.
+
+**Consequences.**
+- Citation validation proves the cited document exists, not that it supports the claim. The eval harness
+  (Day 6) should score faithfulness of Ask answers with the judge.
+- Keyword fallback uses all question words as AND terms, so with no embedder a natural-language question
+  usually retrieves nothing and gets the fallback answer without a model call.
+- Answers see summaries only. Questions about details that are not in a TL;DR or key points will miss.
+  Upgrade path: retrieve body passages for the top items.

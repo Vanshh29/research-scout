@@ -198,3 +198,8 @@ th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 .unlock { display: inline-flex; gap: 6px; align-items: center; margin-left: 12px; }
 .unlock input { padding: 2px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; }
 .unlock button { padding: 2px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+
+.ask-form { display: grid; gap: 8px; max-width: 640px; margin: 0 0 12px; }
+.ask-form textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; resize: vertical; }
+.ask-form button { justify-self: start; padding: 6px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.ask-answer { font-size: 1.05rem; margin: 0 0 16px; }

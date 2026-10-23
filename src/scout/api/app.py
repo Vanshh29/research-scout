@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from scout.api import views
 from scout.api.auth import (
@@ -24,8 +24,11 @@ from scout.api.auth import (
     token_matches,
     writes_enabled,
 )
-from scout.config import Settings
+from scout.ask import AskRefusedError, AskUnavailableError, AskUnusableError, ask
+from scout.config import Settings, load_llm_config
 from scout.graph.queries import subgraph
+from scout.llm.base import LLMError
+from scout.llm.client import LLMClient, make_provider
 from scout.process.sanitize import is_http_url
 from scout.search import Searcher
 from scout.store.db import connect, migrate
@@ -36,6 +39,7 @@ NAV = [
     ("Today", "/"),
     ("Changed", "/changed"),
     ("Search", "/search"),
+    ("Ask", "/ask"),
     ("Graph", "/graph"),
     ("Runs", "/runs"),
 ]
@@ -88,6 +92,10 @@ def duration(ms: int) -> str:
 def safe_url(url: str) -> str:
     """The URL if it is plain http(s), else an empty string so the template renders no link."""
     return url if is_http_url(url) else ""
+
+
+class AskIn(BaseModel):
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
 
 
 class FeedbackIn(BaseModel):
@@ -239,6 +247,44 @@ def create_app(settings: Settings | None = None, *, searcher: Searcher | None = 
         except UnknownItemError:
             raise HTTPException(404, "Unknown item.") from None
         return JSONResponse({"item_id": body.item_id, "vote": vote})
+
+    @app.get("/ask", response_class=HTMLResponse)
+    def ask_page(request: Request, conn: Conn) -> HTMLResponse:
+        return render(request, conn, "ask.html", "/ask")
+
+    @app.post("/api/ask", dependencies=[Depends(require_write)])
+    def ask_api(conn: Conn, body: AskIn) -> JSONResponse:
+        cfg = load_llm_config(settings.config_dir / "llm.yaml")
+        try:
+            client = LLMClient(conn, make_provider(settings, cfg), cfg)
+        except LLMError as exc:
+            raise HTTPException(503, f"Ask is not configured: {exc}") from None
+        try:
+            result = ask(
+                conn,
+                client,
+                searcher,
+                body.question,
+                settings.prompts_dir,
+                daily_cap=cfg.ask_daily_calls,
+            )
+        except AskRefusedError as exc:
+            raise HTTPException(429, str(exc)) from None
+        except (AskUnavailableError, AskUnusableError) as exc:
+            raise HTTPException(502, str(exc)) from None
+
+        def cite(s: Any) -> dict[str, Any]:
+            return {"n": s.n, "item_id": s.item_id, "title": s.title, "url": safe_url(s.url)}
+
+        return JSONResponse(
+            {
+                "answer": result.answer,
+                "grounded": result.grounded,
+                "cached": result.cached,
+                "sources": [cite(s) for s in result.sources],
+                "retrieved": [cite(s) for s in result.retrieved],
+            }
+        )
 
     @app.get("/healthz")
     def healthz(conn: Conn) -> JSONResponse:
