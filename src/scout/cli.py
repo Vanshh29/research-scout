@@ -335,6 +335,39 @@ def search(
     _echo_hits(conn, index.search(embedder.embed([query])[0], k))
 
 
+@app.command("ask")
+def ask_cmd(
+    question: Annotated[str, typer.Argument(help="A question about collected items.")],
+) -> None:
+    """Answer a question from the collected items, with numbered sources (budget-guarded)."""
+    from scout.ask import AskRefusedError, AskUnavailableError, AskUnusableError, ask
+    from scout.search import Searcher
+
+    settings = Settings()
+    configure_logging(settings.log_level)
+    llm_cfg = load_llm_config(settings.config_dir / "llm.yaml")
+    conn = connect(settings.db_path)
+    migrate(conn)
+    try:
+        client = LLMClient(conn, make_provider(settings, llm_cfg), llm_cfg)
+        result = ask(
+            conn,
+            client,
+            Searcher(settings),
+            question,
+            settings.prompts_dir,
+            daily_cap=llm_cfg.ask_daily_calls,
+        )
+    except (LLMError, AskRefusedError, AskUnavailableError, AskUnusableError) as exc:
+        typer.echo(f"cannot answer: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(result.answer)
+    for s in result.sources if result.grounded else result.retrieved:
+        typer.echo(f"  [{s.n}] {s.title} ({s.url})")
+    if not result.grounded and result.retrieved:
+        typer.echo("(nothing above was cited; these are the items that were searched)")
+
+
 @app.command("similar")
 def similar_cmd(
     item_id: Annotated[str, typer.Argument(help="Item id, e.g. arxiv:2401.00001.")],

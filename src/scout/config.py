@@ -96,6 +96,7 @@ class LLMConfig(BaseModel):
     max_output_tokens: int = Field(default=1000, ge=16)
     daily_token_budget: int = Field(default=200_000, ge=1)
     daily_cost_budget_usd: float = Field(default=0.50, ge=0)
+    ask_daily_calls: int = Field(default=30, ge=0)  # uncached Ask calls per UTC day
     price_in_per_mtok: float = Field(default=0.0, ge=0)
     price_out_per_mtok: float = Field(default=0.0, ge=0)
 

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Ask · Research Scout{% endblock %}
+{% block content %}
+<h1>Ask</h1>
+{% if demo %}
+<p class="notice" role="status">Ask is turned off in the read-only demo, because each question costs a model call. <a href="/search">Search</a> works here, and Ask runs on the owner's own instance.</p>
+{% elif not writes %}
+<p class="notice" role="status">Ask is turned off: set <code>SCOUT_API_TOKEN</code> to enable it. <a href="/search">Search</a> still works.</p>
+{% elif not unlocked %}
+<p class="notice" role="status">Enter the token in the footer to unlock Ask. Questions use the daily model budget.</p>
+{% else %}
+<p class="lede">Ask about the collected papers, repositories and posts. Answers use only those items and cite them.</p>
+<form id="ask-form" class="ask-form">
+  <label for="question">Question</label>
+  <textarea id="question" name="question" rows="3" minlength="3" maxlength="500" required placeholder="e.g. How is retrieval-augmented generation evaluated?"></textarea>
+  <button type="submit">Ask</button>
+</form>
+<p class="muted" id="ask-status" role="status"></p>
+<section id="ask-result" class="ask-result" aria-live="polite" hidden>
+  <p id="ask-answer" class="ask-answer"></p>
+  <h2 id="ask-sources-h">Sources</h2>
+  <ol id="ask-sources" class="plain"></ol>
+</section>
+<script src="/static/ask.js"></script>
+{% endif %}
+{% endblock %}

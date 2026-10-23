@@ -146,9 +146,9 @@ def test_old_snapshot_is_upgraded_on_start(tmp_path: Path) -> None:
     conn.execute("DROP VIEW latest_summaries")
     conn.execute("PRAGMA user_version = 7")
     conn.close()
-    # migrations 008 to 010 are not idempotent; an older snapshot lacks their tables entirely
+    # migrations 008 to 011 are not idempotent; an older snapshot lacks their tables entirely
     conn = connect(path)
-    for table in ("feedback", "graph_built", "edges", "entities"):
+    for table in ("ask_usage", "feedback", "graph_built", "edges", "entities"):
         conn.execute(f"DROP TABLE {table}")
     conn.execute("ALTER TABLE summaries DROP COLUMN graph_json")
     conn.close()
