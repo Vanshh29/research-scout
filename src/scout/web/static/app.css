@@ -182,3 +182,11 @@ th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 .plain { list-style: none; padding: 0; margin: 0 0 16px; }
 .plain li { margin: 0 0 12px; }
 .changed-items .tldr { margin: 4px 0 0; }
+
+.graph-search { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; flex-wrap: wrap; }
+.graph-search input { flex: 1 1 220px; max-width: 360px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; }
+.graph-search button { padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.graph-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; }
+.graph-canvas { height: 560px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.graph-side { font-size: 0.95rem; }
+@media (max-width: 760px) { .graph-layout { grid-template-columns: 1fr; } .graph-canvas { height: 420px; } }

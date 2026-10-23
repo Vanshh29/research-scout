@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Graph explorer · Research Scout{% endblock %}
+{% block width %}wide{% endblock %}
+{% block content %}
+<h1>Graph explorer</h1>
+<form class="graph-search" action="/graph" method="get" role="search">
+  <label for="center">Concept</label>
+  <input id="center" name="center" type="search" maxlength="100" value="{{ center }}" placeholder="e.g. RAG, tool use">
+  <button type="submit">Explore</button>
+</form>
+<p class="muted" id="graph-status" role="status">Loading the graph.</p>
+<div class="graph-layout">
+  <div id="graph" class="graph-canvas" data-center="{{ center }}" role="img" aria-label="Knowledge graph of concepts, papers and authors"></div>
+  <aside class="graph-side" aria-labelledby="side-h">
+    <h2 id="side-h">Mentioned in</h2>
+    <ul class="plain" id="graph-items"><li class="muted">Select a concept to see the items that mention it.</li></ul>
+  </aside>
+</div>
+<noscript><p class="notice">The graph needs JavaScript. The concept search still works, and <code>scout graph neighbors</code> prints the same data.</p></noscript>
+<script src="/static/vendor/cytoscape-3.30.2.min.js"></script>
+<script src="/static/graph.js"></script>
+{% endblock %}

@@ -7,18 +7,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from scout.api import views
 from scout.config import Settings
+from scout.graph.queries import subgraph
 from scout.process.sanitize import is_http_url
 from scout.store.db import connect, migrate
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
-NAV = [("Today", "/"), ("Changed", "/changed"), ("Runs", "/runs")]
+NAV = [("Today", "/"), ("Changed", "/changed"), ("Graph", "/graph"), ("Runs", "/runs")]
 RUBRIC = [
     ("relevance", "Relevance"),
     ("novelty", "Novelty"),
@@ -129,6 +130,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/changed", response_class=HTMLResponse)
     def changed(request: Request, conn: Conn) -> HTMLResponse:
         return render(request, conn, "changed.html", "/changed", page=views.changed_today(conn))
+
+    Center = Annotated[str | None, Query(max_length=100)]
+
+    @app.get("/graph", response_class=HTMLResponse)
+    def graph(request: Request, conn: Conn, center: Center = None) -> HTMLResponse:
+        return render(request, conn, "graph.html", "/graph", center=center or "")
+
+    @app.get("/api/graph")
+    def graph_data(
+        conn: Conn, center: Center = None, depth: Annotated[int, Query(ge=1, le=2)] = 1
+    ) -> JSONResponse:
+        sub = subgraph(conn, center.strip() or None if center else None, depth=depth)
+        return JSONResponse(
+            {
+                "center": sub.center,
+                "nodes": [vars(n) for n in sub.nodes],
+                "edges": [vars(e) for e in sub.edges],
+                "items": [
+                    {"id": i.id, "title": i.title, "url": safe_url(i.url)} for i in sub.items
+                ],
+                "truncated": sub.truncated,
+            }
+        )
 
     @app.get("/runs", response_class=HTMLResponse)
     def runs(request: Request, conn: Conn) -> HTMLResponse:
