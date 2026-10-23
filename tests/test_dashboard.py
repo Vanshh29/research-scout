@@ -146,9 +146,9 @@ def test_old_snapshot_is_upgraded_on_start(tmp_path: Path) -> None:
     conn.execute("DROP VIEW latest_summaries")
     conn.execute("PRAGMA user_version = 7")
     conn.close()
-    # migrations 008 and 009 are not idempotent; an older snapshot lacks their tables entirely
+    # migrations 008 to 010 are not idempotent; an older snapshot lacks their tables entirely
     conn = connect(path)
-    for table in ("graph_built", "edges", "entities"):
+    for table in ("feedback", "graph_built", "edges", "entities"):
         conn.execute(f"DROP TABLE {table}")
     conn.execute("ALTER TABLE summaries DROP COLUMN graph_json")
     conn.close()
@@ -327,3 +327,130 @@ def test_graph_api_hostile_names_and_urls_stay_data(db_path: Path) -> None:
     assert resp.headers["content-type"].startswith("application/json")
     assert resp.json()["items"][0]["url"] == ""
     assert "javascript:" not in resp.text
+
+
+TOKEN = "s3cret-token-value"
+VOTE_HEADERS = {"X-Scout": "1"}
+
+
+def writable_client(db_path: Path) -> TestClient:
+    seed_brief(db_path)
+    return client_for(db_path, SCOUT_API_TOKEN=TOKEN)
+
+
+def unlocked_client(db_path: Path) -> TestClient:
+    c = writable_client(db_path)
+    resp = c.post("/unlock", content=f"token={TOKEN}", headers=_FORM, follow_redirects=False)
+    assert resp.status_code == 303
+    return c
+
+
+_FORM = {"Content-Type": "application/x-www-form-urlencoded"}
+BEARER = {"Authorization": f"Bearer {TOKEN}"}
+
+
+def test_votes_are_refused_in_demo_even_with_a_valid_token(db_path: Path) -> None:
+    seed_brief(db_path)
+    c = client_for(db_path, SCOUT_API_TOKEN=TOKEN, SCOUT_DEMO="1")
+    body = {"item_id": "arxiv:1", "vote": 1}
+    assert c.post("/api/feedback", json=body, headers=BEARER).status_code == 403
+    assert c.post("/unlock", content=f"token={TOKEN}", headers=_FORM).status_code == 403
+
+
+def test_votes_are_refused_when_no_token_is_configured(db_path: Path) -> None:
+    seed_brief(db_path)
+    c = client_for(db_path)
+    resp = c.post("/api/feedback", json={"item_id": "arxiv:1", "vote": 1}, headers=BEARER)
+    assert resp.status_code == 403
+    assert c.post("/unlock", content="token=x", headers=_FORM).status_code == 403
+
+
+def test_missing_or_wrong_credentials_are_401(db_path: Path) -> None:
+    c = writable_client(db_path)
+    body = {"item_id": "arxiv:1", "vote": 1}
+    assert c.post("/api/feedback", json=body).status_code == 401
+    bad = {"Authorization": "Bearer nope"}
+    assert c.post("/api/feedback", json=body, headers=bad).status_code == 401
+    assert c.post("/unlock", content="token=nope", headers=_FORM).status_code == 401
+    assert c.post("/unlock", content="", headers=_FORM).status_code == 401
+
+
+def test_bearer_token_can_vote_and_toggle(db_path: Path) -> None:
+    c = writable_client(db_path)
+    body = {"item_id": "arxiv:1", "vote": 1}
+    assert c.post("/api/feedback", json=body, headers=BEARER).json() == {
+        "item_id": "arxiv:1",
+        "vote": 1,
+    }
+    assert c.post("/api/feedback", json=body, headers=BEARER).json()["vote"] is None
+
+
+def test_cookie_auth_needs_the_csrf_header(db_path: Path) -> None:
+    c = unlocked_client(db_path)
+    body = {"item_id": "arxiv:1", "vote": -1}
+    assert c.post("/api/feedback", json=body).status_code == 403
+    ok = c.post("/api/feedback", json=body, headers=VOTE_HEADERS)
+    assert ok.status_code == 200 and ok.json()["vote"] == -1
+
+
+def test_cookie_is_httponly_strict_and_does_not_hold_the_token(db_path: Path) -> None:
+    c = writable_client(db_path)
+    resp = c.post("/unlock", content=f"token={TOKEN}", headers=_FORM, follow_redirects=False)
+    cookie = resp.headers["set-cookie"]
+    assert "HttpOnly" in cookie and "SameSite=strict" in cookie and TOKEN not in cookie
+
+
+def test_vote_validation(db_path: Path) -> None:
+    c = writable_client(db_path)
+    send = lambda body: c.post("/api/feedback", json=body, headers=BEARER)  # noqa: E731
+    assert send({"item_id": "arxiv:1", "vote": 5}).status_code == 422
+    assert send({"item_id": "x" * 500, "vote": 1}).status_code == 422
+    assert send({"vote": 1}).status_code == 422
+    assert send({"item_id": "arxiv:missing", "vote": 1}).status_code == 404
+
+
+def test_token_never_appears_in_responses(db_path: Path) -> None:
+    c = unlocked_client(db_path)
+    pages = [c.get(p).text for p in ("/", "/changed", "/runs", "/graph")]
+    assert all(TOKEN not in page for page in pages)
+    assert TOKEN not in c.post("/api/feedback", json={"vote": 9}, headers=BEARER).text
+
+
+def test_buttons_show_only_when_unlocked(db_path: Path) -> None:
+    locked = writable_client(db_path)
+    page = locked.get("/").text
+    assert 'class="vote"' not in page and 'action="/unlock"' in page
+    unlocked = unlocked_client(db_path)
+    page = unlocked.get("/").text
+    assert 'class="vote"' in page and 'action="/unlock"' not in page
+    assert '<script src="/static/feedback.js"' in page
+
+
+def test_no_buttons_or_unlock_form_in_demo_or_without_token(db_path: Path) -> None:
+    seed_brief(db_path)
+    for env in ({"SCOUT_DEMO": "1", "SCOUT_API_TOKEN": TOKEN}, {}):
+        page = client_for(db_path, **env).get("/").text
+        assert 'class="vote"' not in page and 'action="/unlock"' not in page
+
+
+def test_current_vote_is_rendered_as_pressed(db_path: Path) -> None:
+    c = unlocked_client(db_path)
+    first = c.get("/").text.split('data-item="')[1].split('"')[0]
+    c.post("/api/feedback", json={"item_id": first, "vote": 1}, headers=VOTE_HEADERS)
+    assert 'aria-pressed="true"' in c.get("/").text
+
+
+def test_every_write_route_is_guarded(db_path: Path) -> None:
+    from fastapi.routing import APIRoute
+
+    from scout.api.auth import require_write
+
+    app = client_for(db_path).app
+    unguarded = []
+    for route in app.routes:  # type: ignore[attr-defined]
+        if not isinstance(route, APIRoute) or route.methods <= {"GET", "HEAD"}:
+            continue
+        deps = {d.call for d in route.dependant.dependencies}
+        if require_write not in deps and route.path != "/unlock":  # /unlock checks by hand
+            unguarded.append(route.path)
+    assert unguarded == []

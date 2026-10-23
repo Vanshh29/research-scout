@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import source, status %}
+{% from "_macros.html" import source, status, votes %}
 {% block title %}What changed today · Research Scout{% endblock %}
 {% block content %}
 <h1>What changed today</h1>
@@ -33,7 +33,7 @@
     <li>
       {% set href = e.url|safe_url %}
       <strong>{% if href %}<a href="{{ href }}" rel="noopener noreferrer" target="_blank">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</strong>
-      <div class="meta">{{ source(e.source) }}{% if e.hybrid is not none %}<span class="score" title="Hybrid score">{{ '%.2f'|format(e.hybrid) }}</span>{% else %}<span class="muted">not ranked yet</span>{% endif %}</div>
+      <div class="meta">{{ source(e.source) }}{% if e.hybrid is not none %}<span class="score" title="Hybrid score">{{ '%.2f'|format(e.hybrid) }}</span>{% else %}<span class="muted">not ranked yet</span>{% endif %}{{ votes(e.item_id, votes_by_item.get(e.item_id), unlocked) }}</div>
       {% if e.tldr %}<p class="tldr">{{ e.tldr }}</p>{% endif %}
     </li>
     {% endfor %}

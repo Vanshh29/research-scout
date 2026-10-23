@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import source, glyph, bar %}
+{% from "_macros.html" import source, glyph, bar, votes %}
 {% block title %}Today's brief · Research Scout{% endblock %}
 {% block content %}
 <h1>Today's brief</h1>
@@ -29,6 +29,7 @@
         {{ source(e.source) }}
         <span class="score" title="Hybrid score">{{ '%.2f'|format(e.hybrid) }}</span>
         {% if e.breakdown %}{{ glyph(e.breakdown) }}{% else %}<span class="muted">embedding only</span>{% endif %}
+        {{ votes(e.item_id, votes_by_item.get(e.item_id), unlocked) }}
       </div>
       {% if e.tldr %}<p class="tldr">{{ e.tldr }}</p>{% endif %}
       {% if e.reason %}<p class="reason">{{ e.reason }}</p>{% endif %}
