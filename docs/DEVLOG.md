@@ -126,3 +126,45 @@
 **What's next (Day 5)**
 - FastAPI app, Today's brief, What changed today, Run status.
 - Graph explorer (Cytoscape.js), Search / Ask with citations, feedback buttons.
+
+## 2026-10-23 · Dashboard: changes, graph, feedback, search, ask
+
+**What changed**
+- `/changed` (What changed today): new items since the latest run, new concepts, trending concepts,
+  and sources whose health differs from the previous run. Computed from existing tables, no migration.
+- `/graph` + `/api/graph`: a bounded slice of the knowledge graph (80 nodes, `truncated` flag), drawn by
+  a vendored Cytoscape.js because the CSP forbids CDN and inline script. ADR-013.
+- Write guard + feedback: default-deny (`demo` and a missing token both refuse), bearer token or an
+  unlock cookie holding an HMAC, CSRF header for cookie requests, thumbs up/down in migration 010. A
+  test walks the app's routes and fails if a non-GET route lacks the guard. ADR-014.
+- `/search` and `/similar/{id}`: semantic search with a lazily loaded embedder and an in-memory index,
+  falling back to keyword matching when the model cannot load. Works in demo mode.
+- Ask: `scout ask`, `/ask`, `POST /api/ask`. Answers use stored summaries, citations are validated in
+  code (invented ones dropped, uncited answers replaced by a fallback), cached by question + documents,
+  separate daily cap (migration 011). Off in the demo. ADR-015.
+- 254 tests, all offline, up from 178. Six PRs merged (#18 to #23).
+
+**What surprised me**
+- The plan said the old-snapshot upgrade test needed no change for migration 010. It did: that test
+  drops tables by hand, so every new migration has to be added to its list. It failed again for 011.
+- The hidden-flag problem on the editable `.pth` is not caused by `uv run`: it came back with no
+  `uv` involved, so something else on the Mac re-applies it. `PYTHONPATH=src` is the workaround.
+- A pre-commit hook rewrote the vendored Cytoscape LICENSE (trailing newline) and silently aborted
+  the first commit; I only noticed because `git log` did not move.
+- The first subgraph test assumed concepts link to each other directly. They only meet through
+  their item node, so a depth-1 view of a concept shows items and a handful of concepts at depth 2.
+- A pending `cat >> file` with no input hung a command for two minutes. Own mistake.
+
+**Not done / not verified**
+- Nothing in this batch was looked at in a browser (the Chrome extension was not connected). In
+  particular, whether Cytoscape triggers a CSP error under `style-src 'self'` is unknown.
+- Ask has never run against a real Gemini key; tests use the fake provider with canned replies.
+  Citation validation proves the cited document exists, not that it supports the claim.
+- Hosted votes are not persisted (the snapshot is replaced on deploy). Votes do not change ranking yet.
+- Still waiting on me: the 30 hand labels, Gemini and Telegram keys.
+
+**What's next**
+- Look at `/graph`, `/changed`, `/search`, `/ask` and the vote buttons in a browser; fix whatever the CSP breaks.
+- Eval harness: judge, metrics (precision@k, nDCG, entity P/R), regression gate in CI. Needs the labels.
+- Score Ask answers for faithfulness once the judge exists.
+- Deploy: Dockerfile, hosting ADR, demo snapshot with seeded data.
